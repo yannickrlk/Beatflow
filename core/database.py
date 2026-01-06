@@ -57,7 +57,8 @@ class DatabaseManager:
                 duration REAL,
                 bitrate INTEGER,
                 sample_rate INTEGER,
-                name TEXT
+                name TEXT,
+                is_favorite INTEGER DEFAULT 0
             )
         ''')
 
@@ -66,6 +67,12 @@ class DatabaseManager:
             CREATE INDEX IF NOT EXISTS idx_samples_folder
             ON samples(path)
         ''')
+
+        # Migration: Add is_favorite column if it doesn't exist
+        cursor.execute("PRAGMA table_info(samples)")
+        columns = [col[1] for col in cursor.fetchall()]
+        if 'is_favorite' not in columns:
+            cursor.execute('ALTER TABLE samples ADD COLUMN is_favorite INTEGER DEFAULT 0')
 
         conn.commit()
 
@@ -199,6 +206,85 @@ class DatabaseManager:
         cursor = conn.cursor()
         cursor.execute('DELETE FROM samples')
         conn.commit()
+
+    def toggle_favorite(self, path: str) -> bool:
+        """
+        Toggle the favorite status of a sample.
+
+        Args:
+            path: Full path to the audio file.
+
+        Returns:
+            New favorite status (True if now favorite, False otherwise).
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        # Get current status
+        cursor.execute('SELECT is_favorite FROM samples WHERE path = ?', (path,))
+        row = cursor.fetchone()
+
+        if row:
+            new_status = 0 if row['is_favorite'] else 1
+            cursor.execute('UPDATE samples SET is_favorite = ? WHERE path = ?', (new_status, path))
+            conn.commit()
+            return new_status == 1
+
+        return False
+
+    def set_favorite(self, path: str, is_favorite: bool):
+        """
+        Set the favorite status of a sample.
+
+        Args:
+            path: Full path to the audio file.
+            is_favorite: True to mark as favorite, False to unmark.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('UPDATE samples SET is_favorite = ? WHERE path = ?', (1 if is_favorite else 0, path))
+        conn.commit()
+
+    def get_favorites(self) -> List[Dict]:
+        """
+        Get all favorite samples.
+
+        Returns:
+            List of sample dicts that are marked as favorites.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM samples WHERE is_favorite = 1 ORDER BY filename')
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    def get_favorites_count(self) -> int:
+        """
+        Get the count of favorite samples.
+
+        Returns:
+            Number of samples marked as favorites.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM samples WHERE is_favorite = 1')
+        return cursor.fetchone()[0]
+
+    def is_favorite(self, path: str) -> bool:
+        """
+        Check if a sample is marked as favorite.
+
+        Args:
+            path: Full path to the audio file.
+
+        Returns:
+            True if the sample is a favorite, False otherwise.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT is_favorite FROM samples WHERE path = ?', (path,))
+        row = cursor.fetchone()
+        return row and row['is_favorite'] == 1
 
     def close(self):
         """Close the database connection."""

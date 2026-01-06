@@ -4,6 +4,7 @@ import os
 import customtkinter as ctk
 from ui.theme import COLORS
 from core.scanner import LibraryScanner
+from core.database import get_database
 
 
 class FolderNode(ctk.CTkFrame):
@@ -169,14 +170,17 @@ class FolderNode(ctk.CTkFrame):
 class LibraryTreeView(ctk.CTkFrame):
     """Library index showing folders with expandable tree structure."""
 
-    def __init__(self, master, root_folders=None, command=None, **kwargs):
+    def __init__(self, master, root_folders=None, command=None, on_favorites=None, **kwargs):
         super().__init__(master, width=220, corner_radius=0, fg_color=COLORS['bg_dark'], **kwargs)
         self.grid_propagate(False)
 
         self.command = command
+        self.on_favorites = on_favorites  # Callback for favorites selection
         self.root_folders = root_folders or []
         self.root_nodes = []
         self.selected_node = None
+        self.favorites_btn = None
+        self.favorites_selected = False
 
         self._build_ui()
         self.refresh()
@@ -224,6 +228,15 @@ class LibraryTreeView(ctk.CTkFrame):
 
         self.root_nodes = []
         self.selected_node = None
+        self.favorites_btn = None
+        self.favorites_selected = False
+
+        # Add Favorites item at the top
+        self._create_favorites_item()
+
+        # Separator
+        separator = ctk.CTkFrame(self.scroll_frame, fg_color=COLORS['bg_hover'], height=1)
+        separator.pack(fill="x", padx=8, pady=8)
 
         for folder in self.root_folders:
             if os.path.exists(folder):
@@ -241,9 +254,77 @@ class LibraryTreeView(ctk.CTkFrame):
                 except Exception:
                     pass  # Skip if widget creation fails
 
+    def _create_favorites_item(self):
+        """Create the Favorites item at the top of the tree."""
+        # Row container
+        row = ctk.CTkFrame(self.scroll_frame, fg_color="transparent", height=32)
+        row.pack(fill="x", pady=1)
+        row.pack_propagate(False)
+
+        # Star icon spacer (to align with folder expand buttons)
+        spacer = ctk.CTkFrame(row, fg_color="transparent", width=24)
+        spacer.pack(side="left", padx=(4, 0))
+
+        # Favorites button
+        self.favorites_btn = ctk.CTkButton(
+            row,
+            text="\u2605 Favorites",
+            font=ctk.CTkFont(size=12),
+            fg_color="transparent",
+            hover_color=COLORS['bg_hover'],
+            anchor="w",
+            height=28,
+            corner_radius=4,
+            text_color=COLORS['accent'],
+            command=self._on_favorites_click
+        )
+        self.favorites_btn.pack(side="left", fill="x", expand=True)
+
+        # Favorites count
+        db = get_database()
+        count = db.get_favorites_count()
+        if count > 0:
+            count_label = ctk.CTkLabel(
+                row,
+                text=str(count),
+                font=ctk.CTkFont(size=10),
+                fg_color=COLORS['accent'],
+                corner_radius=3,
+                text_color="#ffffff",
+                width=35,
+                height=18
+            )
+            count_label.pack(side="right", padx=(0, 8))
+
+    def _on_favorites_click(self):
+        """Handle favorites click."""
+        # Deselect any selected folder
+        if self.selected_node:
+            try:
+                if self.selected_node.winfo_exists():
+                    self.selected_node.set_selected(False)
+            except Exception:
+                pass
+            self.selected_node = None
+
+        # Select favorites
+        self.favorites_selected = True
+        self.favorites_btn.configure(fg_color=COLORS['bg_hover'])
+
+        if self.on_favorites:
+            self.on_favorites()
+
     def _on_folder_select(self, path, node):
         """Handle folder selection."""
-        # Deselect previous (check if still exists)
+        # Deselect favorites if selected
+        if self.favorites_selected and self.favorites_btn:
+            try:
+                self.favorites_btn.configure(fg_color="transparent")
+            except Exception:
+                pass
+            self.favorites_selected = False
+
+        # Deselect previous folder (check if still exists)
         if self.selected_node:
             try:
                 if self.selected_node.winfo_exists():

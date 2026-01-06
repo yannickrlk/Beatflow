@@ -1,42 +1,43 @@
-# Current Task: Search Enhancements (Phase 6)
+# Current Task: Awaiting Next Phase
 
-## Context
-The current search only filters by exact substring matching on filename, BPM, and Key.
-Users need more powerful search capabilities to find samples quickly in large libraries.
+## Phase 7 - Favorites System (COMPLETED)
 
-## Objectives for Claude
+### What was implemented:
+1. **Database Update** (`core/database.py`)
+   - Added `is_favorite` column to `samples` table with migration for existing DBs
+   - Added `toggle_favorite(path)` method
+   - Added `get_favorites()` method
+   - Added `get_favorites_count()` method
+   - Added `is_favorite(path)` method
+   - Added `set_favorite(path, bool)` method
 
-### 1. Fuzzy Search
-- **File**: `ui/library.py`
-- **Task**: Implement fuzzy matching for sample search
-  - Use a simple fuzzy matching algorithm (e.g., Levenshtein distance or partial matching)
-  - Consider using `rapidfuzz` library for performance
-  - Allow typos and partial matches
+2. **UI - SampleRow Star Button** (`ui/library.py`)
+   - Added star button to each SampleRow (right side, before waveform)
+   - Empty star when not favorite, filled orange star when favorite
+   - Click toggles favorite state in database
+   - Context menu option "Add to Favorites" / "Remove from Favorites"
 
-### 2. Extended Search Fields
-- **File**: `ui/library.py` → `filter_samples()` method
-- **Task**: Search across more metadata fields:
-  - Artist
-  - Album
-  - Genre
-  - Title (already via name)
+3. **UI - Library Index Favorites** (`ui/tree_view.py`)
+   - Added "Favorites" item at top of Library Index (tree view)
+   - Shows favorites count badge
+   - Separated from folder list with divider
 
-### 3. Advanced Filter Panel (Optional)
-- **File**: `ui/library.py` or new `ui/filters.py`
-- **Task**: Add a collapsible filter panel with:
-  - BPM range slider (e.g., 80-180 BPM)
-  - Key selector (dropdown or checkboxes)
-  - Format filter (WAV, MP3, etc.)
-  - Duration range
+4. **Integration** (`ui/app.py`)
+   - Clicking "Favorites" in Library Index loads all favorited samples
+   - Favorites persist across sessions (SQLite)
+   - Unfavoriting a sample in favorites view removes it from the list
+   - Favorites count updates when toggling favorites
 
-## Notes
-- Consider performance for large libraries (1000+ samples)
-- Keep the simple search bar for quick filtering
-- Advanced filters should be optional/collapsible
+## Previous Phases Completed
+- Phase 6: Search Enhancements (fuzzy matching, multi-field search)
+- Phase 5: Tag Editing (metadata dialog, file rename)
+- Phase 4.2: Database Caching (SQLite)
+- Phase 4.1: Real Metadata (mutagen)
+- Phase 3.2: Player & Search
+- Phase 3.1: Waveform Visualization
 
-## Previous Phase Completed
-Phase 5 - Tag Editing:
-- Right-click context menu on SampleRow
-- MetadataEditDialog for editing metadata
-- save_metadata() function supports MP3, FLAC, OGG, AIFF
-- Database cache updates after edit
+## Suggested Next Tasks (Backlog)
+1. **Drag & Drop to DAW** - Allow dragging samples to external applications
+2. **Advanced Filter Panel** - BPM range slider, Key selector dropdown
+3. **Collections/Playlists** - Group samples into custom collections
+4. **Auto BPM/Key Detection** - Use librosa for audio analysis

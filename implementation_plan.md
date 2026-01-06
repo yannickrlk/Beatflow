@@ -92,22 +92,26 @@
 
 ---
 
-## � Phase 7 - Favorites System (Approved)
+## ✅ Completed: Phase 7 - Favorites System
 
 ### Favorites
 **Goal**: Mark and quickly access favorite samples.
-- [ ] **Database**: Add `is_favorite` boolean column to `samples` table.
-- [ ] **UI Sidebar**: Add "Favorites" navigation item.
-- [ ] **UI SampleRow**: Add "Star" icon/button for toggling.
-- [ ] **Logic**:
+- [x] **Database**: Add `is_favorite` boolean column to `samples` table.
+  - Schema migration for existing databases
+  - `toggle_favorite()`, `get_favorites()`, `get_favorites_count()`, `is_favorite()`, `set_favorite()` methods
+- [x] **UI Library Index**: Add "Favorites" item at top of tree view with count badge.
+- [x] **UI SampleRow**: Add "Star" icon/button for toggling.
+  - Empty star (unfavorited) / Filled orange star (favorited)
+  - Context menu options
+- [x] **Logic**:
   - Update DB on toggle.
-  - Filter view to show only favorites when selected in sidebar.
+  - Favorites view shows all favorited samples.
+  - Unfavoriting in favorites view removes from list.
 
 ---
 
-## �📋 Backlog (Future)
+## Backlog (Future)
 - [ ] Drag & drop samples to DAW
-- [ ] Right-click context menu
-- [ ] Favorites/starred samples
+- [ ] Advanced filter panel (BPM range, Key selector)
 - [ ] Collections/playlists
 - [ ] Auto BPM/Key detection (librosa)

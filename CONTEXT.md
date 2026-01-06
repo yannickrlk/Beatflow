@@ -97,6 +97,13 @@ db.upsert_sample(sample_dict)    # Insert or update single sample
 db.upsert_samples(samples_list)  # Bulk insert/update
 db.remove_sample(path)           # Delete from cache
 db.clear_all()                   # Clear entire cache
+
+# Favorites
+db.toggle_favorite(path)         # Toggle favorite status, returns new bool
+db.get_favorites()               # Get all favorite samples as list
+db.get_favorites_count()         # Get count of favorites
+db.is_favorite(path)             # Check if sample is favorited
+db.set_favorite(path, bool)      # Set favorite status explicitly
 ```
 - Auto-creates `beatflow.db` in project root
 - Cache validation via file mtime and size
@@ -175,12 +182,15 @@ player.set_volume(0.7)                       # Set volume (0.0-1.0)
 
 ### SampleList (`ui/library.py`)
 ```python
-SampleList(master, on_play_request=None)
+SampleList(master, on_play_request=None, on_edit_request=None, on_favorite_change=None)
 sample_list.load_folder(path)              # Load samples from folder
+sample_list.load_favorites()               # Load all favorite samples
 sample_list.filter_samples(query)          # Filter by search query
+sample_list.clear_samples()                # Clear the sample list
 ```
 - Delegates playback to FooterPlayer via callback
 - Maintains filtered_samples for playlist context
+- Star button on each row for toggling favorites
 
 ---
 
@@ -205,16 +215,14 @@ sample_list.filter_samples(query)          # Filter by search query
 ✅ **Duration display** in sample rows and player
 ✅ **SQLite caching**: Fast re-scans via mtime/size validation
 ✅ **Tag editing**: Right-click → Edit Metadata (MP3, FLAC, OGG, AIFF)
-✅ **Context menu**: Open File Location, Copy Path
+✅ **Context menu**: Open File Location, Copy Path, Edit Metadata, Add to Favorites
+✅ **Favorites system**: Star button on samples, Favorites in Library Index with count badge
 ✅ Dark theme UI
 ✅ Persistent config
 
 ---
 
 ## 6. Not Yet Implemented
-
-### High Priority
-- [ ] Favorites system (star samples)
 
 ### Medium Priority
 - [ ] Drag & drop to DAW
@@ -249,4 +257,4 @@ python main.py
 
 ---
 
-*Last implementation: Tag Editing feature (Phase 5 completed)*
+*Last implementation: Favorites System (Phase 7 completed)*

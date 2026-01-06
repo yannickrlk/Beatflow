@@ -10,6 +10,7 @@ import pygame
 from ui.theme import COLORS
 from core.scanner import LibraryScanner
 from core.waveform import generate_waveform_image
+from core.database import get_database
 
 
 class SampleRow(ctk.CTkFrame):
@@ -18,14 +19,16 @@ class SampleRow(ctk.CTkFrame):
     WAVEFORM_WIDTH = 180
     WAVEFORM_HEIGHT = 35
 
-    def __init__(self, parent, sample, on_play, on_edit=None, **kwargs):
+    def __init__(self, parent, sample, on_play, on_edit=None, on_favorite=None, **kwargs):
         super().__init__(parent, fg_color="transparent", height=70, **kwargs)
         self.pack_propagate(False)
 
         self.sample = sample
         self.on_play = on_play
         self.on_edit = on_edit  # Callback for edit metadata
+        self.on_favorite = on_favorite  # Callback for favorite toggle
         self.is_playing = False
+        self.is_favorite = sample.get('is_favorite', False) or get_database().is_favorite(sample['path'])
         self.waveform_image = None  # Keep reference to prevent garbage collection
 
         self._build_ui()
@@ -191,6 +194,21 @@ class SampleRow(ctk.CTkFrame):
         )
         self.waveform_label.pack(side="right", padx=20)
 
+        # Star/Favorite button
+        self.star_btn = ctk.CTkButton(
+            self,
+            text="\u2605" if self.is_favorite else "\u2606",  # Filled or empty star
+            width=32,
+            height=32,
+            font=ctk.CTkFont(size=16),
+            fg_color="transparent",
+            hover_color=COLORS['bg_hover'],
+            text_color=COLORS['accent'] if self.is_favorite else COLORS['fg_dim'],
+            corner_radius=16,
+            command=self._toggle_favorite
+        )
+        self.star_btn.pack(side="right", padx=(0, 8))
+
     @staticmethod
     def _format_duration(seconds: float) -> str:
         """Format duration in seconds to M:SS format."""
@@ -244,6 +262,29 @@ class SampleRow(ctk.CTkFrame):
         else:
             self.play_btn.configure(text="\u25b6", fg_color=COLORS['bg_hover'])
 
+    def _toggle_favorite(self):
+        """Toggle favorite status."""
+        db = get_database()
+        self.is_favorite = db.toggle_favorite(self.sample['path'])
+
+        # Update UI
+        if self.is_favorite:
+            self.star_btn.configure(text="\u2605", text_color=COLORS['accent'])
+        else:
+            self.star_btn.configure(text="\u2606", text_color=COLORS['fg_dim'])
+
+        # Notify callback
+        if self.on_favorite:
+            self.on_favorite(self.sample, self.is_favorite)
+
+    def set_favorite(self, is_favorite: bool):
+        """Set the favorite state visually."""
+        self.is_favorite = is_favorite
+        if self.is_favorite:
+            self.star_btn.configure(text="\u2605", text_color=COLORS['accent'])
+        else:
+            self.star_btn.configure(text="\u2606", text_color=COLORS['fg_dim'])
+
     def _bind_context_menu(self):
         """Bind right-click context menu to the row."""
         self.bind("<Button-3>", self._show_context_menu)
@@ -257,6 +298,10 @@ class SampleRow(ctk.CTkFrame):
                        activebackground=COLORS['accent'], activeforeground='white',
                        font=('Segoe UI', 10))
 
+        # Favorite toggle
+        fav_label = "Remove from Favorites" if self.is_favorite else "Add to Favorites"
+        menu.add_command(label=fav_label, command=self._toggle_favorite)
+        menu.add_separator()
         menu.add_command(label="Edit Metadata", command=self._on_edit_metadata)
         menu.add_separator()
         menu.add_command(label="Open File Location", command=self._on_open_location)
@@ -292,7 +337,7 @@ class SampleRow(ctk.CTkFrame):
 class SampleList(ctk.CTkFrame):
     """Main sample list view with header and scrollable list."""
 
-    def __init__(self, master, on_play_request=None, on_edit_request=None, **kwargs):
+    def __init__(self, master, on_play_request=None, on_edit_request=None, on_favorite_change=None, **kwargs):
         super().__init__(master, fg_color=COLORS['bg_main'], corner_radius=0, **kwargs)
 
         self.grid_columnconfigure(0, weight=1)
@@ -300,12 +345,14 @@ class SampleList(ctk.CTkFrame):
 
         self.on_play_request = on_play_request  # Callback: (sample, playlist, index)
         self.on_edit_request = on_edit_request  # Callback: (sample, row)
+        self.on_favorite_change = on_favorite_change  # Callback: (sample, is_favorite)
         self.sample_rows = []
         self.all_samples = []  # All samples in current folder
         self.filtered_samples = []  # Samples after search filter
         self.current_playing_row = None
         self.current_path = None
         self.search_query = ""
+        self.is_favorites_view = False  # Track if showing favorites
 
         self._build_ui()
 
@@ -381,6 +428,7 @@ class SampleList(ctk.CTkFrame):
     def load_folder(self, folder_path):
         """Load samples from a folder and display them."""
         self.current_path = folder_path
+        self.is_favorites_view = False
         folder_name = os.path.basename(folder_path)
         self.breadcrumb.configure(text=f"\U0001f4c1 Library  \u203a  {folder_name}")
 
@@ -471,7 +519,7 @@ class SampleList(ctk.CTkFrame):
 
         # Create sample rows
         for sample in self.filtered_samples:
-            row = SampleRow(self.scroll_frame, sample, self._on_play, self._on_edit)
+            row = SampleRow(self.scroll_frame, sample, self._on_play, self._on_edit, self._on_favorite)
             row.pack(fill="x", pady=2)
             self.sample_rows.append(row)
 
@@ -497,6 +545,43 @@ class SampleList(ctk.CTkFrame):
         """Handle edit request from a sample row."""
         if self.on_edit_request:
             self.on_edit_request(row.sample, row)
+
+    def _on_favorite(self, sample, is_favorite):
+        """Handle favorite change from a sample row."""
+        # If in favorites view and sample was unfavorited, remove it from view
+        if self.is_favorites_view and not is_favorite:
+            # Remove from filtered_samples and refresh
+            self.all_samples = [s for s in self.all_samples if s['path'] != sample['path']]
+            self._refresh_display()
+
+        # Notify callback
+        if self.on_favorite_change:
+            self.on_favorite_change(sample, is_favorite)
+
+    def load_favorites(self):
+        """Load all favorite samples and display them."""
+        self.current_path = None
+        self.is_favorites_view = True
+        self.breadcrumb.configure(text="\u2605 Favorites")
+
+        # Get favorites from database
+        db = get_database()
+        self.all_samples = db.get_favorites()
+        self.search_query = ""
+
+        # Apply filter and display
+        self._refresh_display()
+
+    def clear_samples(self):
+        """Clear the sample list display."""
+        for row in self.sample_rows:
+            row.destroy()
+        self.sample_rows = []
+        self.all_samples = []
+        self.filtered_samples = []
+        self.current_playing_row = None
+        self.is_favorites_view = False
+        self.count_label.configure(text="")
 
     def _stop_playback(self):
         """Stop current playback visual state."""

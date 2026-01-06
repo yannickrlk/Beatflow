@@ -52,7 +52,8 @@ class BeatflowApp(ctk.CTk):
         self.tree_view = LibraryTreeView(
             self,
             root_folders=self.config_manager.root_folders,
-            command=self._on_folder_select
+            command=self._on_folder_select,
+            on_favorites=self._on_favorites_select
         )
         self.tree_view.grid(row=1, column=1, sticky="nsew")
 
@@ -60,7 +61,8 @@ class BeatflowApp(ctk.CTk):
         self.sample_list = SampleList(
             self,
             on_play_request=self._on_play_request,
-            on_edit_request=self._on_edit_request
+            on_edit_request=self._on_edit_request,
+            on_favorite_change=self._on_favorite_change
         )
         self.sample_list.grid(row=1, column=2, sticky="nsew")
 
@@ -208,7 +210,19 @@ class BeatflowApp(ctk.CTk):
 
     def _on_nav_change(self, nav_id):
         """Handle navigation change."""
-        print(f"Navigation changed to: {nav_id}")
+        if nav_id == "samples":
+            # Clear sample list and let user select a folder from tree
+            self.sample_list.clear_samples()
+            self.sample_list.breadcrumb.configure(text="\U0001f4c1 Library")
+
+    def _on_favorites_select(self):
+        """Handle favorites selection from tree view."""
+        self.sample_list.load_favorites()
+
+    def _on_favorite_change(self, sample, is_favorite):
+        """Handle favorite status change."""
+        # Refresh tree view to update favorites count
+        self.tree_view.refresh()
 
     def _on_edit_request(self, sample, row):
         """Handle metadata edit request from sample list."""
