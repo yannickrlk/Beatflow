@@ -170,17 +170,22 @@ class FolderNode(ctk.CTkFrame):
 class LibraryTreeView(ctk.CTkFrame):
     """Library index showing folders with expandable tree structure."""
 
-    def __init__(self, master, root_folders=None, command=None, on_favorites=None, **kwargs):
+    def __init__(self, master, root_folders=None, command=None, on_favorites=None,
+                 on_collection=None, on_create_collection=None, **kwargs):
         super().__init__(master, width=220, corner_radius=0, fg_color=COLORS['bg_dark'], **kwargs)
         self.grid_propagate(False)
 
         self.command = command
         self.on_favorites = on_favorites  # Callback for favorites selection
+        self.on_collection = on_collection  # Callback for collection selection
+        self.on_create_collection = on_create_collection  # Callback for new collection
         self.root_folders = root_folders or []
         self.root_nodes = []
         self.selected_node = None
         self.favorites_btn = None
         self.favorites_selected = False
+        self.collection_btns = {}  # Track collection buttons by ID
+        self.selected_collection_id = None
 
         self._build_ui()
         self.refresh()
@@ -230,11 +235,16 @@ class LibraryTreeView(ctk.CTkFrame):
         self.selected_node = None
         self.favorites_btn = None
         self.favorites_selected = False
+        self.collection_btns = {}
+        self.selected_collection_id = None
 
         # Add Favorites item at the top
         self._create_favorites_item()
 
-        # Separator
+        # Add Collections section
+        self._create_collections_section()
+
+        # Separator before folders
         separator = ctk.CTkFrame(self.scroll_frame, fg_color=COLORS['bg_hover'], height=1)
         separator.pack(fill="x", padx=8, pady=8)
 
@@ -307,12 +317,162 @@ class LibraryTreeView(ctk.CTkFrame):
                 pass
             self.selected_node = None
 
+        # Deselect any selected collection
+        self._deselect_collection()
+
         # Select favorites
         self.favorites_selected = True
         self.favorites_btn.configure(fg_color=COLORS['bg_hover'])
 
         if self.on_favorites:
             self.on_favorites()
+
+    def _create_collections_section(self):
+        """Create the Collections section."""
+        # Separator before collections
+        separator = ctk.CTkFrame(self.scroll_frame, fg_color=COLORS['bg_hover'], height=1)
+        separator.pack(fill="x", padx=8, pady=8)
+
+        # Collections header with + button
+        header_row = ctk.CTkFrame(self.scroll_frame, fg_color="transparent", height=24)
+        header_row.pack(fill="x", padx=8, pady=(0, 4))
+        header_row.pack_propagate(False)
+
+        collections_label = ctk.CTkLabel(
+            header_row,
+            text="COLLECTIONS",
+            font=ctk.CTkFont(size=10, weight="bold"),
+            text_color=COLORS['fg_dim']
+        )
+        collections_label.pack(side="left")
+
+        # Add collection button
+        add_btn = ctk.CTkButton(
+            header_row,
+            text="+",
+            width=20,
+            height=20,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color="transparent",
+            hover_color=COLORS['bg_hover'],
+            text_color=COLORS['fg_dim'],
+            corner_radius=4,
+            command=self._on_create_collection_click
+        )
+        add_btn.pack(side="right")
+
+        # Get collections from database
+        db = get_database()
+        collections = db.get_collections()
+
+        if not collections:
+            # Show hint when no collections
+            hint = ctk.CTkLabel(
+                self.scroll_frame,
+                text="No collections yet",
+                font=ctk.CTkFont(size=11),
+                text_color=COLORS['fg_muted']
+            )
+            hint.pack(anchor="w", padx=32, pady=4)
+        else:
+            # Create collection items
+            for collection in collections:
+                self._create_collection_item(collection)
+
+    def _create_collection_item(self, collection: dict):
+        """Create a single collection item."""
+        collection_id = collection['id']
+
+        # Row container
+        row = ctk.CTkFrame(self.scroll_frame, fg_color="transparent", height=28)
+        row.pack(fill="x", pady=1)
+        row.pack_propagate(False)
+
+        # Indent spacer
+        spacer = ctk.CTkFrame(row, fg_color="transparent", width=24)
+        spacer.pack(side="left", padx=(4, 0))
+
+        # Collection button
+        btn = ctk.CTkButton(
+            row,
+            text=f"\u25A1 {collection['name']}",  # Box symbol
+            font=ctk.CTkFont(size=12),
+            fg_color="transparent",
+            hover_color=COLORS['bg_hover'],
+            anchor="w",
+            height=24,
+            corner_radius=4,
+            text_color=COLORS['fg_secondary'],
+            command=lambda cid=collection_id: self._on_collection_click(cid)
+        )
+        btn.pack(side="left", fill="x", expand=True)
+
+        # Sample count
+        count = collection.get('sample_count', 0)
+        if count > 0:
+            count_label = ctk.CTkLabel(
+                row,
+                text=str(count),
+                font=ctk.CTkFont(size=10),
+                fg_color=COLORS['bg_hover'],
+                corner_radius=3,
+                text_color=COLORS['fg_dim'],
+                width=30,
+                height=16
+            )
+            count_label.pack(side="right", padx=(0, 8))
+
+        self.collection_btns[collection_id] = btn
+
+    def _on_collection_click(self, collection_id: int):
+        """Handle collection click."""
+        # Deselect folder
+        if self.selected_node:
+            try:
+                if self.selected_node.winfo_exists():
+                    self.selected_node.set_selected(False)
+            except Exception:
+                pass
+            self.selected_node = None
+
+        # Deselect favorites
+        if self.favorites_selected and self.favorites_btn:
+            try:
+                self.favorites_btn.configure(fg_color="transparent")
+            except Exception:
+                pass
+            self.favorites_selected = False
+
+        # Deselect previous collection
+        self._deselect_collection()
+
+        # Select this collection
+        self.selected_collection_id = collection_id
+        if collection_id in self.collection_btns:
+            self.collection_btns[collection_id].configure(
+                fg_color=COLORS['bg_hover'],
+                text_color=COLORS['fg']
+            )
+
+        if self.on_collection:
+            self.on_collection(collection_id)
+
+    def _deselect_collection(self):
+        """Deselect the currently selected collection."""
+        if self.selected_collection_id and self.selected_collection_id in self.collection_btns:
+            try:
+                self.collection_btns[self.selected_collection_id].configure(
+                    fg_color="transparent",
+                    text_color=COLORS['fg_secondary']
+                )
+            except Exception:
+                pass
+        self.selected_collection_id = None
+
+    def _on_create_collection_click(self):
+        """Handle create collection button click."""
+        if self.on_create_collection:
+            self.on_create_collection()
 
     def _on_folder_select(self, path, node):
         """Handle folder selection."""
@@ -323,6 +483,9 @@ class LibraryTreeView(ctk.CTkFrame):
             except Exception:
                 pass
             self.favorites_selected = False
+
+        # Deselect any selected collection
+        self._deselect_collection()
 
         # Deselect previous folder (check if still exists)
         if self.selected_node:

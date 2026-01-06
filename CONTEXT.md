@@ -1,5 +1,5 @@
 # Beatflow Project Context
-> Last updated: 2026-01-06
+> Last updated: 2026-01-07
 > For collaboration between Claude (implementation) and Gemini (brainstorming)
 
 ---
@@ -104,6 +104,18 @@ db.get_favorites()               # Get all favorite samples as list
 db.get_favorites_count()         # Get count of favorites
 db.is_favorite(path)             # Check if sample is favorited
 db.set_favorite(path, bool)      # Set favorite status explicitly
+
+# Collections
+db.create_collection(name)       # Create new collection, returns ID
+db.get_collections()             # Get all collections with sample counts
+db.get_collection(id)            # Get collection by ID
+db.rename_collection(id, name)   # Rename a collection
+db.delete_collection(id)         # Delete collection and associations
+db.add_to_collection(id, path)   # Add sample to collection
+db.remove_from_collection(id, path)  # Remove sample from collection
+db.get_collection_samples(id)    # Get all samples in a collection
+db.get_sample_collections(path)  # Get all collections containing a sample
+db.is_in_collection(id, path)    # Check if sample is in collection
 ```
 - Auto-creates `beatflow.db` in project root
 - Cache validation via file mtime and size
@@ -215,8 +227,9 @@ sample_list.clear_samples()                # Clear the sample list
 ✅ **Duration display** in sample rows and player
 ✅ **SQLite caching**: Fast re-scans via mtime/size validation
 ✅ **Tag editing**: Right-click → Edit Metadata (MP3, FLAC, OGG, AIFF)
-✅ **Context menu**: Open File Location, Copy Path, Edit Metadata, Add to Favorites
+✅ **Context menu**: Open File Location, Copy Path, Edit Metadata, Add to Favorites, Add to Collection
 ✅ **Favorites system**: Star button on samples, Favorites in Library Index with count badge
+✅ **Collections system**: Create collections, add samples, view collection contents
 ✅ Dark theme UI
 ✅ Persistent config
 
@@ -225,12 +238,11 @@ sample_list.clear_samples()                # Clear the sample list
 ## 6. Not Yet Implemented
 
 ### Medium Priority
-- [ ] Drag & drop to DAW
 - [ ] Advanced filter panel (BPM range, Key selector)
+- [ ] Auto BPM/Key detection
 
 ### Lower Priority
 - [ ] AI-powered sample recommendations
-- [ ] Auto BPM/Key detection
 
 ---
 
@@ -257,4 +269,4 @@ python main.py
 
 ---
 
-*Last implementation: Favorites System (Phase 7 completed)*
+*Last implementation: Collections System (Phase 9 completed)*

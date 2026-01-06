@@ -2,7 +2,7 @@
 
 import os
 import customtkinter as ctk
-from typing import Dict, Callable, Optional
+from typing import Dict, Callable, Optional, List
 from ui.theme import COLORS
 
 
@@ -255,5 +255,248 @@ class MetadataEditDialog(ctk.CTkToplevel):
 
     def _on_cancel(self):
         """Handle cancel button click."""
+        self.result = None
+        self.destroy()
+
+
+class NewCollectionDialog(ctk.CTkToplevel):
+    """Dialog for creating a new collection."""
+
+    def __init__(self, parent, on_create: Callable[[str], None] = None):
+        super().__init__(parent)
+
+        self.on_create = on_create
+        self.result = None
+
+        # Window setup
+        self.title("New Collection")
+        self.geometry("350x180")
+        self.resizable(False, False)
+        self.configure(fg_color=COLORS['bg_dark'])
+
+        # Make modal
+        self.transient(parent)
+        self.grab_set()
+
+        # Center on parent
+        self.update_idletasks()
+        x = parent.winfo_rootx() + (parent.winfo_width() - 350) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - 180) // 2
+        self.geometry(f"+{x}+{y}")
+
+        self._build_ui()
+        self.name_entry.focus()
+
+    def _build_ui(self):
+        """Build the dialog UI."""
+        # Header
+        title_label = ctk.CTkLabel(
+            self,
+            text="Create New Collection",
+            font=ctk.CTkFont(size=16, weight="bold"),
+            text_color=COLORS['fg']
+        )
+        title_label.pack(padx=24, pady=(20, 16))
+
+        # Name input
+        name_frame = ctk.CTkFrame(self, fg_color="transparent")
+        name_frame.pack(fill="x", padx=24)
+
+        name_label = ctk.CTkLabel(
+            name_frame,
+            text="Collection Name",
+            font=ctk.CTkFont(size=12),
+            text_color=COLORS['fg_secondary']
+        )
+        name_label.pack(anchor="w")
+
+        self.name_entry = ctk.CTkEntry(
+            name_frame,
+            font=ctk.CTkFont(size=13),
+            fg_color=COLORS['bg_hover'],
+            border_width=0,
+            height=36,
+            placeholder_text="My Collection"
+        )
+        self.name_entry.pack(fill="x", pady=(4, 0))
+
+        # Buttons
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=24, pady=(20, 20))
+
+        cancel_btn = ctk.CTkButton(
+            btn_frame,
+            text="Cancel",
+            font=ctk.CTkFont(size=13),
+            fg_color=COLORS['bg_hover'],
+            hover_color=COLORS['bg_card'],
+            text_color=COLORS['fg'],
+            width=90,
+            height=36,
+            corner_radius=6,
+            command=self._on_cancel
+        )
+        cancel_btn.pack(side="right", padx=(8, 0))
+
+        create_btn = ctk.CTkButton(
+            btn_frame,
+            text="Create",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            fg_color=COLORS['accent'],
+            hover_color=COLORS['accent_hover'] if 'accent_hover' in COLORS else COLORS['accent'],
+            text_color="white",
+            width=90,
+            height=36,
+            corner_radius=6,
+            command=self._on_create
+        )
+        create_btn.pack(side="right")
+
+        # Bind keys
+        self.bind("<Return>", lambda e: self._on_create())
+        self.bind("<Escape>", lambda e: self._on_cancel())
+
+    def _on_create(self):
+        """Handle create button click."""
+        name = self.name_entry.get().strip()
+        if name:
+            self.result = name
+            if self.on_create:
+                self.on_create(name)
+            self.destroy()
+
+    def _on_cancel(self):
+        """Handle cancel button click."""
+        self.result = None
+        self.destroy()
+
+
+class AddToCollectionDialog(ctk.CTkToplevel):
+    """Dialog for adding a sample to a collection."""
+
+    def __init__(self, parent, collections: List[Dict], sample_path: str,
+                 on_select: Callable[[int], None] = None,
+                 on_create_new: Callable[[], None] = None):
+        super().__init__(parent)
+
+        self.collections = collections
+        self.sample_path = sample_path
+        self.on_select = on_select
+        self.on_create_new = on_create_new
+        self.result = None
+
+        # Window setup
+        self.title("Add to Collection")
+        self.geometry("320x350")
+        self.resizable(False, False)
+        self.configure(fg_color=COLORS['bg_dark'])
+
+        # Make modal
+        self.transient(parent)
+        self.grab_set()
+
+        # Center on parent
+        self.update_idletasks()
+        x = parent.winfo_rootx() + (parent.winfo_width() - 320) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - 350) // 2
+        self.geometry(f"+{x}+{y}")
+
+        self._build_ui()
+
+    def _build_ui(self):
+        """Build the dialog UI."""
+        # Header
+        title_label = ctk.CTkLabel(
+            self,
+            text="Add to Collection",
+            font=ctk.CTkFont(size=16, weight="bold"),
+            text_color=COLORS['fg']
+        )
+        title_label.pack(padx=20, pady=(16, 12))
+
+        # Collections list
+        list_frame = ctk.CTkScrollableFrame(
+            self,
+            fg_color=COLORS['bg_main'],
+            corner_radius=8,
+            height=200
+        )
+        list_frame.pack(fill="both", expand=True, padx=20, pady=(0, 12))
+
+        if not self.collections:
+            hint = ctk.CTkLabel(
+                list_frame,
+                text="No collections yet.\nCreate one below.",
+                font=ctk.CTkFont(size=12),
+                text_color=COLORS['fg_dim'],
+                justify="center"
+            )
+            hint.pack(pady=40)
+        else:
+            for collection in self.collections:
+                self._create_collection_row(list_frame, collection)
+
+        # Create new collection button
+        new_btn = ctk.CTkButton(
+            self,
+            text="+ Create New Collection",
+            font=ctk.CTkFont(size=12),
+            fg_color="transparent",
+            hover_color=COLORS['bg_hover'],
+            text_color=COLORS['accent'],
+            height=32,
+            corner_radius=6,
+            command=self._on_create_new
+        )
+        new_btn.pack(fill="x", padx=20, pady=(0, 12))
+
+        # Cancel button
+        cancel_btn = ctk.CTkButton(
+            self,
+            text="Cancel",
+            font=ctk.CTkFont(size=13),
+            fg_color=COLORS['bg_hover'],
+            hover_color=COLORS['bg_card'],
+            text_color=COLORS['fg'],
+            height=36,
+            corner_radius=6,
+            command=self._on_cancel
+        )
+        cancel_btn.pack(fill="x", padx=20, pady=(0, 16))
+
+        # Bind escape
+        self.bind("<Escape>", lambda e: self._on_cancel())
+
+    def _create_collection_row(self, parent, collection: Dict):
+        """Create a row for a collection."""
+        row = ctk.CTkButton(
+            parent,
+            text=f"\u25A1 {collection['name']}",
+            font=ctk.CTkFont(size=12),
+            fg_color="transparent",
+            hover_color=COLORS['bg_hover'],
+            text_color=COLORS['fg'],
+            anchor="w",
+            height=36,
+            corner_radius=4,
+            command=lambda cid=collection['id']: self._on_collection_select(cid)
+        )
+        row.pack(fill="x", pady=2)
+
+    def _on_collection_select(self, collection_id: int):
+        """Handle collection selection."""
+        self.result = collection_id
+        if self.on_select:
+            self.on_select(collection_id)
+        self.destroy()
+
+    def _on_create_new(self):
+        """Handle create new collection."""
+        self.destroy()
+        if self.on_create_new:
+            self.on_create_new()
+
+    def _on_cancel(self):
+        """Handle cancel."""
         self.result = None
         self.destroy()

@@ -74,6 +74,27 @@ class DatabaseManager:
         if 'is_favorite' not in columns:
             cursor.execute('ALTER TABLE samples ADD COLUMN is_favorite INTEGER DEFAULT 0')
 
+        # Create collections table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS collections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Create collection_samples junction table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS collection_samples (
+                collection_id INTEGER NOT NULL,
+                sample_path TEXT NOT NULL,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (collection_id, sample_path),
+                FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
+                FOREIGN KEY (sample_path) REFERENCES samples(path) ON DELETE CASCADE
+            )
+        ''')
+
         conn.commit()
 
     def get_sample(self, path: str) -> Optional[Dict]:
@@ -291,6 +312,205 @@ class DatabaseManager:
         if self._conn:
             self._conn.close()
             self._conn = None
+
+    # ==================== Collection Methods ====================
+
+    def create_collection(self, name: str) -> Optional[int]:
+        """
+        Create a new collection.
+
+        Args:
+            name: Name of the collection.
+
+        Returns:
+            The ID of the created collection, or None if creation failed.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('INSERT INTO collections (name) VALUES (?)', (name,))
+            conn.commit()
+            return cursor.lastrowid
+        except sqlite3.IntegrityError:
+            return None  # Name already exists
+
+    def get_collections(self) -> List[Dict]:
+        """
+        Get all collections with their sample counts.
+
+        Returns:
+            List of collection dicts with id, name, created_at, and sample_count.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT c.id, c.name, c.created_at,
+                   COUNT(cs.sample_path) as sample_count
+            FROM collections c
+            LEFT JOIN collection_samples cs ON c.id = cs.collection_id
+            GROUP BY c.id
+            ORDER BY c.name
+        ''')
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    def get_collection(self, collection_id: int) -> Optional[Dict]:
+        """
+        Get a collection by ID.
+
+        Args:
+            collection_id: The collection ID.
+
+        Returns:
+            Collection dict or None if not found.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM collections WHERE id = ?', (collection_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def rename_collection(self, collection_id: int, new_name: str) -> bool:
+        """
+        Rename a collection.
+
+        Args:
+            collection_id: The collection ID.
+            new_name: The new name.
+
+        Returns:
+            True if successful, False otherwise.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('UPDATE collections SET name = ? WHERE id = ?', (new_name, collection_id))
+            conn.commit()
+            return cursor.rowcount > 0
+        except sqlite3.IntegrityError:
+            return False  # Name already exists
+
+    def delete_collection(self, collection_id: int) -> bool:
+        """
+        Delete a collection and all its sample associations.
+
+        Args:
+            collection_id: The collection ID.
+
+        Returns:
+            True if successful, False otherwise.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        # Delete associations first
+        cursor.execute('DELETE FROM collection_samples WHERE collection_id = ?', (collection_id,))
+        cursor.execute('DELETE FROM collections WHERE id = ?', (collection_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+    def add_to_collection(self, collection_id: int, sample_path: str) -> bool:
+        """
+        Add a sample to a collection.
+
+        Args:
+            collection_id: The collection ID.
+            sample_path: Path to the sample file.
+
+        Returns:
+            True if added, False if already exists.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                'INSERT INTO collection_samples (collection_id, sample_path) VALUES (?, ?)',
+                (collection_id, sample_path)
+            )
+            conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False  # Already in collection
+
+    def remove_from_collection(self, collection_id: int, sample_path: str) -> bool:
+        """
+        Remove a sample from a collection.
+
+        Args:
+            collection_id: The collection ID.
+            sample_path: Path to the sample file.
+
+        Returns:
+            True if removed, False otherwise.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'DELETE FROM collection_samples WHERE collection_id = ? AND sample_path = ?',
+            (collection_id, sample_path)
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+    def get_collection_samples(self, collection_id: int) -> List[Dict]:
+        """
+        Get all samples in a collection.
+
+        Args:
+            collection_id: The collection ID.
+
+        Returns:
+            List of sample dicts.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT s.* FROM samples s
+            JOIN collection_samples cs ON s.path = cs.sample_path
+            WHERE cs.collection_id = ?
+            ORDER BY cs.added_at DESC
+        ''', (collection_id,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    def get_sample_collections(self, sample_path: str) -> List[Dict]:
+        """
+        Get all collections that contain a sample.
+
+        Args:
+            sample_path: Path to the sample file.
+
+        Returns:
+            List of collection dicts.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT c.* FROM collections c
+            JOIN collection_samples cs ON c.id = cs.collection_id
+            WHERE cs.sample_path = ?
+            ORDER BY c.name
+        ''', (sample_path,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    def is_in_collection(self, collection_id: int, sample_path: str) -> bool:
+        """
+        Check if a sample is in a collection.
+
+        Args:
+            collection_id: The collection ID.
+            sample_path: Path to the sample file.
+
+        Returns:
+            True if in collection, False otherwise.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT 1 FROM collection_samples WHERE collection_id = ? AND sample_path = ?',
+            (collection_id, sample_path)
+        )
+        return cursor.fetchone() is not None
 
 
 # Global database instance (singleton pattern)

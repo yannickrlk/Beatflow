@@ -19,7 +19,8 @@ class SampleRow(ctk.CTkFrame):
     WAVEFORM_WIDTH = 180
     WAVEFORM_HEIGHT = 35
 
-    def __init__(self, parent, sample, on_play, on_edit=None, on_favorite=None, **kwargs):
+    def __init__(self, parent, sample, on_play, on_edit=None, on_favorite=None,
+                 on_add_to_collection=None, **kwargs):
         super().__init__(parent, fg_color="transparent", height=70, **kwargs)
         self.pack_propagate(False)
 
@@ -27,6 +28,7 @@ class SampleRow(ctk.CTkFrame):
         self.on_play = on_play
         self.on_edit = on_edit  # Callback for edit metadata
         self.on_favorite = on_favorite  # Callback for favorite toggle
+        self.on_add_to_collection = on_add_to_collection  # Callback for add to collection
         self.is_playing = False
         self.is_favorite = sample.get('is_favorite', False) or get_database().is_favorite(sample['path'])
         self.waveform_image = None  # Keep reference to prevent garbage collection
@@ -301,6 +303,7 @@ class SampleRow(ctk.CTkFrame):
         # Favorite toggle
         fav_label = "Remove from Favorites" if self.is_favorite else "Add to Favorites"
         menu.add_command(label=fav_label, command=self._toggle_favorite)
+        menu.add_command(label="Add to Collection...", command=self._on_add_to_collection)
         menu.add_separator()
         menu.add_command(label="Edit Metadata", command=self._on_edit_metadata)
         menu.add_separator()
@@ -329,6 +332,11 @@ class SampleRow(ctk.CTkFrame):
         self.clipboard_clear()
         self.clipboard_append(self.sample['path'])
 
+    def _on_add_to_collection(self):
+        """Handle Add to Collection menu click."""
+        if self.on_add_to_collection:
+            self.on_add_to_collection(self)
+
     def update_sample(self, new_sample):
         """Update the sample data and refresh display."""
         self.sample = new_sample
@@ -337,7 +345,8 @@ class SampleRow(ctk.CTkFrame):
 class SampleList(ctk.CTkFrame):
     """Main sample list view with header and scrollable list."""
 
-    def __init__(self, master, on_play_request=None, on_edit_request=None, on_favorite_change=None, **kwargs):
+    def __init__(self, master, on_play_request=None, on_edit_request=None,
+                 on_favorite_change=None, on_add_to_collection=None, **kwargs):
         super().__init__(master, fg_color=COLORS['bg_main'], corner_radius=0, **kwargs)
 
         self.grid_columnconfigure(0, weight=1)
@@ -346,6 +355,7 @@ class SampleList(ctk.CTkFrame):
         self.on_play_request = on_play_request  # Callback: (sample, playlist, index)
         self.on_edit_request = on_edit_request  # Callback: (sample, row)
         self.on_favorite_change = on_favorite_change  # Callback: (sample, is_favorite)
+        self.on_add_to_collection = on_add_to_collection  # Callback: (sample)
         self.sample_rows = []
         self.all_samples = []  # All samples in current folder
         self.filtered_samples = []  # Samples after search filter
@@ -353,6 +363,8 @@ class SampleList(ctk.CTkFrame):
         self.current_path = None
         self.search_query = ""
         self.is_favorites_view = False  # Track if showing favorites
+        self.is_collection_view = False  # Track if showing a collection
+        self.current_collection_id = None  # Current collection ID
 
         self._build_ui()
 
@@ -429,6 +441,8 @@ class SampleList(ctk.CTkFrame):
         """Load samples from a folder and display them."""
         self.current_path = folder_path
         self.is_favorites_view = False
+        self.is_collection_view = False
+        self.current_collection_id = None
         folder_name = os.path.basename(folder_path)
         self.breadcrumb.configure(text=f"\U0001f4c1 Library  \u203a  {folder_name}")
 
@@ -519,7 +533,10 @@ class SampleList(ctk.CTkFrame):
 
         # Create sample rows
         for sample in self.filtered_samples:
-            row = SampleRow(self.scroll_frame, sample, self._on_play, self._on_edit, self._on_favorite)
+            row = SampleRow(
+                self.scroll_frame, sample, self._on_play, self._on_edit,
+                self._on_favorite, self._on_add_to_collection
+            )
             row.pack(fill="x", pady=2)
             self.sample_rows.append(row)
 
@@ -558,15 +575,42 @@ class SampleList(ctk.CTkFrame):
         if self.on_favorite_change:
             self.on_favorite_change(sample, is_favorite)
 
+    def _on_add_to_collection(self, row):
+        """Handle add to collection request from a sample row."""
+        if self.on_add_to_collection:
+            self.on_add_to_collection(row.sample)
+
     def load_favorites(self):
         """Load all favorite samples and display them."""
         self.current_path = None
         self.is_favorites_view = True
+        self.is_collection_view = False
+        self.current_collection_id = None
         self.breadcrumb.configure(text="\u2605 Favorites")
 
         # Get favorites from database
         db = get_database()
         self.all_samples = db.get_favorites()
+        self.search_query = ""
+
+        # Apply filter and display
+        self._refresh_display()
+
+    def load_collection(self, collection_id: int):
+        """Load all samples in a collection and display them."""
+        self.current_path = None
+        self.is_favorites_view = False
+        self.is_collection_view = True
+        self.current_collection_id = collection_id
+
+        # Get collection info
+        db = get_database()
+        collection = db.get_collection(collection_id)
+        collection_name = collection['name'] if collection else "Collection"
+        self.breadcrumb.configure(text=f"\u25A1 {collection_name}")
+
+        # Get collection samples
+        self.all_samples = db.get_collection_samples(collection_id)
         self.search_query = ""
 
         # Apply filter and display
@@ -581,6 +625,8 @@ class SampleList(ctk.CTkFrame):
         self.filtered_samples = []
         self.current_playing_row = None
         self.is_favorites_view = False
+        self.is_collection_view = False
+        self.current_collection_id = None
         self.count_label.configure(text="")
 
     def _stop_playback(self):

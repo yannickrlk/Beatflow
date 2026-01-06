@@ -29,7 +29,7 @@ description: Plan the next task, research dependencies, and prepare the project 
    - **Update Documentation**:
      - Update `implementation_plan.md`: Mark previous tasks as completed, add details for the new task.
      - Update `CONTEXT.md`: Update "Current State", "Project Overview", or "Key Components" if relevant.
-     - Update `current_task.md`: Write a detailed, technical task description for the next developer/agent. This should be very specific (files to edit, functions to create).
+     - **Update `current_task.md` (CRITICAL STEP)**: Write a detailed, technical task description for the next developer/agent. This should be very specific (files to edit, functions to create) and directly derived from the next phase in `implementation_plan.md`.
 
 5. **Handover**
    - Use `notify_user` to confirm that the project is ready for the coding phase.

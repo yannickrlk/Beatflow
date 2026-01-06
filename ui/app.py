@@ -8,7 +8,7 @@ from ui.sidebar import Sidebar
 from ui.tree_view import LibraryTreeView
 from ui.library import SampleList
 from ui.player import FooterPlayer
-from ui.dialogs import MetadataEditDialog
+from ui.dialogs import MetadataEditDialog, NewCollectionDialog, AddToCollectionDialog
 from core.config import ConfigManager
 from core.scanner import LibraryScanner
 from core.database import get_database
@@ -53,7 +53,9 @@ class BeatflowApp(ctk.CTk):
             self,
             root_folders=self.config_manager.root_folders,
             command=self._on_folder_select,
-            on_favorites=self._on_favorites_select
+            on_favorites=self._on_favorites_select,
+            on_collection=self._on_collection_select,
+            on_create_collection=self._on_create_collection
         )
         self.tree_view.grid(row=1, column=1, sticky="nsew")
 
@@ -62,7 +64,8 @@ class BeatflowApp(ctk.CTk):
             self,
             on_play_request=self._on_play_request,
             on_edit_request=self._on_edit_request,
-            on_favorite_change=self._on_favorite_change
+            on_favorite_change=self._on_favorite_change,
+            on_add_to_collection=self._on_add_to_collection
         )
         self.sample_list.grid(row=1, column=2, sticky="nsew")
 
@@ -219,10 +222,49 @@ class BeatflowApp(ctk.CTk):
         """Handle favorites selection from tree view."""
         self.sample_list.load_favorites()
 
+    def _on_collection_select(self, collection_id: int):
+        """Handle collection selection from tree view."""
+        self.sample_list.load_collection(collection_id)
+
+    def _on_create_collection(self):
+        """Handle create collection request."""
+        def on_create(name):
+            db = get_database()
+            collection_id = db.create_collection(name)
+            if collection_id:
+                self.tree_view.refresh()
+
+        NewCollectionDialog(self, on_create=on_create)
+
     def _on_favorite_change(self, sample, is_favorite):
         """Handle favorite status change."""
         # Refresh tree view to update favorites count
         self.tree_view.refresh()
+
+    def _on_add_to_collection(self, sample):
+        """Handle add to collection request."""
+        db = get_database()
+        collections = db.get_collections()
+
+        def on_select(collection_id):
+            db.add_to_collection(collection_id, sample['path'])
+            self.tree_view.refresh()
+
+        def on_create_new():
+            # Show create collection dialog, then add sample
+            def on_create(name):
+                collection_id = db.create_collection(name)
+                if collection_id:
+                    db.add_to_collection(collection_id, sample['path'])
+                    self.tree_view.refresh()
+
+            NewCollectionDialog(self, on_create=on_create)
+
+        AddToCollectionDialog(
+            self, collections, sample['path'],
+            on_select=on_select,
+            on_create_new=on_create_new
+        )
 
     def _on_edit_request(self, sample, row):
         """Handle metadata edit request from sample list."""
