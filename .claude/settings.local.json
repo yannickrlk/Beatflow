@@ -4,7 +4,11 @@
       "Bash(python sample_browser.py:*)",
       "Bash(pip install:*)",
       "Bash(mkdir:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(cat:*)",
+      "Bash(pip show:*)",
+      "Bash(winget install:*)",
+      "Bash(py:*)"
     ]
   }
 }

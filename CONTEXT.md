@@ -1,6 +1,14 @@
 # Beatflow Project Context
-> Last updated: 2026-01-07
+> Last updated: 2026-01-07 (Phase 13 - Waveform Interaction - Complete)
 > For collaboration between Claude (implementation) and Gemini (brainstorming)
+
+---
+
+> [!CAUTION]
+> **MANDATORY: Python 3.12**
+> This project requires **Python 3.12** (not 3.13 or 3.14).
+> `numba` and `librosa` crash with **Access Violation (0xC0000005)** on Python 3.14.
+> Install Python 3.12 from: https://www.python.org/downloads/release/python-3120/
 
 ---
 
@@ -13,7 +21,7 @@
 - Visual organization
 
 **Tech Stack:**
-- Python 3.11+
+- **Python 3.12** (required - 3.14 crashes with librosa/numba)
 - CustomTkinter (modern Tkinter wrapper)
 - Pygame (audio playback)
 - NumPy + Pillow (waveform generation)
@@ -36,16 +44,17 @@ Beatflow/
 │   ├── config.py           # ConfigManager - handles JSON save/load
 │   ├── database.py         # DatabaseManager - SQLite caching for metadata
 │   ├── scanner.py          # LibraryScanner - file scanning & metadata
-│   └── waveform.py         # Waveform image generation
+│   ├── waveform.py         # Waveform image generation
+│   └── analyzer.py         # AudioAnalyzer - BPM/Key detection (librosa)
 │
 └── ui/
     ├── __init__.py
     ├── theme.py            # COLORS dict, shared styling constants
     ├── app.py              # BeatflowApp - main window, layout
-    ├── sidebar.py          # Sidebar - navigation (Dashboard, Samples, etc.)
+    ├── sidebar.py          # Sidebar - navigation (Browse + Settings)
     ├── player.py           # FooterPlayer - Global playback controls
     ├── dialogs.py          # MetadataEditDialog - edit sample metadata
-    ├── tree_view.py        # LibraryTreeView - folder tree with expand/collapse
+    ├── tree_view.py        # LibraryTreeView - folder tree with expand/collapse, context menu
     └── library.py          # SampleList + SampleRow - sample display & playback
 ```
 
@@ -138,7 +147,7 @@ LibraryScanner.extract_tags(name)                  # Returns List[str]
 }
 ```
 
-### WaveformGenerator (`core/waveform.py`) - NEW
+### WaveformGenerator (`core/waveform.py`)
 ```python
 generate_waveform_image(
     file_path: str,
@@ -154,6 +163,33 @@ clear_cache()  # Clear all cached waveforms
 - Supports: WAV (native), MP3/FLAC/OGG (via pydub)
 - Caches images in `.waveform_cache/` directory
 - Uses peak-based downsampling for visualization
+
+### AudioAnalyzer (`core/analyzer.py`)
+```python
+from core.analyzer import get_analyzer, analyze_audio
+
+# Singleton instance
+analyzer = get_analyzer()
+
+# Synchronous analysis
+result = analyze_audio(filepath)  # Returns {'bpm': '120', 'key': 'Am'}
+
+# Async analysis with callback
+analyzer.analyze_file(filepath, callback=on_result)
+
+# Batch analysis with progress
+analyzer.analyze_batch(filepaths, progress_callback, completion_callback)
+
+# Database methods
+db.update_analysis(path, detected_bpm, detected_key)
+db.get_analysis(path)  # Returns {detected_bpm, detected_key, analysis_date}
+db.get_samples_needing_analysis(folder_path)
+db.clear_analysis(path)  # Allow re-analysis
+```
+- Uses librosa for BPM detection (beat tracking) and Key detection (chroma features)
+- Background thread processing (computationally expensive)
+- Results cached in SQLite database
+- Visual indicator: Purple color with ≈ symbol for detected values
 
 ### Theme (`ui/theme.py`)
 ```python
@@ -227,22 +263,47 @@ sample_list.clear_samples()                # Clear the sample list
 ✅ **Duration display** in sample rows and player
 ✅ **SQLite caching**: Fast re-scans via mtime/size validation
 ✅ **Tag editing**: Right-click → Edit Metadata (MP3, FLAC, OGG, AIFF)
-✅ **Context menu**: Open File Location, Copy Path, Edit Metadata, Add to Favorites, Add to Collection
+✅ **Context menu**: Open File Location, Copy Path, Edit Metadata, Add to Favorites, Add to Collection, Analyze BPM/Key
 ✅ **Favorites system**: Star button on samples, Favorites in Library Index with count badge
 ✅ **Collections system**: Create collections, add samples, view collection contents
-✅ Dark theme UI
-✅ Persistent config
+✅ **Audio Analysis**: Automatic BPM and Key detection using librosa (right-click → Analyze BPM/Key)
+✅ **Batch Analysis**: "Analyze All" button to analyze all samples in current view
+✅ **Visual indicator**: Purple color (≈) for detected BPM/Key vs embedded metadata
+✅ **Play/Pause Toggle**: Click play button toggles pause when same sample is playing
+✅ **MP3 Waveforms**: Librosa fallback when ffmpeg unavailable
+✅ **Clean UI**: Simplified sidebar (Browse only), clean topbar (Search + Add Folder)
+✅ **Empty state guidance**: "Add your sample folders to get started" for first-time users
+✅ **Folder removal**: Right-click root folders → "Remove from Library"
+✅ **Sorting**: Sort dropdown (Name A-Z/Z-A, BPM Low-High/High-Low, Key, Duration)
+✅ **Pro UX Design**: Cyber-Premium color palette, 8px grid spacing, monospaced data fonts
+✅ **Playing State**: Visual feedback with accent border and highlighted background
+✅ **Sidebar Accent**: Vertical accent bar indicator for active navigation
+✅ **Global Library Search**: Search across all folders with Folder/Library toggle
+✅ **Search Result Context**: Shows folder path in global search, "Go to Folder" action
+✅ **Advanced Filters**: Collapsible filter panel with BPM range, Key selector, Format filter
+✅ **Filter Enhancements**: Enharmonic key support (C# = Db), AND logic with text search
+✅ **CLI Folder Support**: Pass folder path via command line argument
+✅ **Windows Shell Integration**: "Add to Beatflow" context menu (opt-in via Settings)
+✅ **Drag & Drop**: Drop folders from Explorer to add to library
+✅ **Settings Dialog**: Gear icon in topbar, shell integration toggle
+✅ **Recently Played**: Tracks last 50 played samples in sidebar
+✅ **Smart BPM/Key Extraction**: Priority: filename → analysis → manual edit
+✅ **Improved Filename Parsing**: Handles Dminor, F#Minor, DbMajor, 120bpm, etc.
+✅ **Background Batch Analysis**: "Analyze All" runs in background thread (no UI freeze)
+✅ **Real-time UI Updates**: Analysis results appear immediately without reload
+✅ **Edit Detected Values**: Right-click → Edit Metadata shows detected values for editing
+✅ **Waveform Click-to-Seek**: Click anywhere on waveform to jump to that position
+✅ **SoundCloud-style Progress**: Played portion shows in accent color, unplayed in gray (dual-waveform compositing)
+✅ Dark theme UI (deep blue-black tones)
+✅ Persistent config (including sort preferences)
 
 ---
 
 ## 6. Not Yet Implemented
 
-### Medium Priority
-- [ ] Advanced filter panel (BPM range, Key selector)
-- [ ] Auto BPM/Key detection
-
 ### Lower Priority
 - [ ] AI-powered sample recommendations
+- [ ] Global hotkeys (system-wide)
 
 ---
 
@@ -250,11 +311,19 @@ sample_list.clear_samples()                # Clear the sample list
 
 ```bash
 cd Beatflow
-pip install -r requirements.txt
-python main.py
+
+# IMPORTANT: Use Python 3.12 (not 3.14 - crashes with librosa/numba)
+py -3.12 -m pip install -r requirements.txt
+py -3.12 main.py
+
+# Verify dependencies work:
+py -3.12 verify_deps.py
+
+# Or with a folder argument:
+py -3.12 main.py "C:\Path\To\Samples"
 ```
 
-**Note**: `mutagen` is now required for metadata.
+**Note**: `mutagen` is required for metadata, `tkinterdnd2` for drag & drop.
 
 ---
 
@@ -269,4 +338,4 @@ python main.py
 
 ---
 
-*Last implementation: Collections System (Phase 9 completed)*
+*Last implementation: Phase 13 (Complete) - Waveform Interaction*

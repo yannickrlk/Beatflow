@@ -1,7 +1,9 @@
 {
   "root_folders": [
-    "C:\\Users\\y4nn1\\OneDrive\\Documents\\Image-Line\\FL Studio\\Projects",
-    "C:\\Users\\y4nn1\\Desktop\\Musique\\Projet"
+    "C:\\Users\\y4nn1\\Desktop\\Musique\\Projet",
+    "D:\\2023"
   ],
-  "volume": 0.82
+  "volume": 0.91,
+  "sort_by": "bpm",
+  "sort_order": "asc"
 }

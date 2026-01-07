@@ -10,7 +10,9 @@ class ConfigManager:
 
     DEFAULT_CONFIG = {
         'root_folders': [],
-        'volume': 0.7
+        'volume': 0.7,
+        'sort_by': 'name',  # name, bpm, key, duration
+        'sort_order': 'asc'  # asc, desc
     }
 
     def __init__(self, config_path: str = None):
@@ -109,4 +111,20 @@ class ConfigManager:
     def set_volume(self, volume: float):
         """Save volume level to config."""
         self.config['volume'] = max(0.0, min(1.0, volume))
+        self.save()
+
+    @property
+    def sort_by(self) -> str:
+        """Get the current sort field."""
+        return self.config.get('sort_by', 'name')
+
+    @property
+    def sort_order(self) -> str:
+        """Get the current sort order (asc/desc)."""
+        return self.config.get('sort_order', 'asc')
+
+    def set_sort(self, sort_by: str, sort_order: str):
+        """Save sort preferences to config."""
+        self.config['sort_by'] = sort_by
+        self.config['sort_order'] = sort_order
         self.save()

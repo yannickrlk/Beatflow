@@ -1,7 +1,7 @@
 """Sidebar navigation component for Beatflow."""
 
 import customtkinter as ctk
-from ui.theme import COLORS
+from ui.theme import COLORS, SPACING
 
 
 class Sidebar(ctk.CTkFrame):
@@ -12,95 +12,94 @@ class Sidebar(ctk.CTkFrame):
         self.grid_propagate(False)
         self.on_nav_change = on_nav_change
         self.nav_buttons = {}
-        self.active_nav = "samples"
+        self.nav_indicators = {}  # Vertical accent bars
+        self.active_nav = "browse"
         self._build_ui()
 
     def _build_ui(self):
         """Build the sidebar UI."""
-        # Logo area
+        # Logo area - 8px grid
         logo_frame = ctk.CTkFrame(self, fg_color="transparent")
-        logo_frame.pack(fill="x", padx=16, pady=(20, 0))
-
-        # FLP badge
-        flp_badge = ctk.CTkLabel(
-            logo_frame,
-            text=" FLP ",
-            font=ctk.CTkFont(size=10, weight="bold"),
-            fg_color=COLORS['accent'],
-            corner_radius=4,
-            text_color="#ffffff"
-        )
-        flp_badge.pack(side="left")
+        logo_frame.pack(fill="x", padx=SPACING['md'], pady=(SPACING['lg'], 0))
 
         logo_text = ctk.CTkLabel(
             logo_frame,
-            text="BeatmakerOS",
-            font=ctk.CTkFont(size=16, weight="bold"),
+            text="Beatflow",
+            font=ctk.CTkFont(family="Inter", size=18, weight="bold"),
             text_color=COLORS['fg']
         )
-        logo_text.pack(side="left", padx=(8, 0))
+        logo_text.pack(side="left")
 
-        # Navigation items
+        # Navigation items - 8px grid
         nav_frame = ctk.CTkFrame(self, fg_color="transparent")
-        nav_frame.pack(fill="x", pady=(30, 0))
+        nav_frame.pack(fill="x", pady=(SPACING['xl'], 0))
 
         nav_items = [
-            ("dashboard", "Dashboard", False),
-            ("clients", "Clients", False),
-            ("samples", "Samples", True),  # Active by default
-            ("projects", "Projects", False),
-            ("roadmap", "Dev RoadMap", False),
+            ("browse", "Browse", True),  # Active by default
         ]
 
         for nav_id, label, is_active in nav_items:
-            btn = self._create_nav_button(nav_frame, nav_id, label, is_active)
+            btn, indicator = self._create_nav_button(nav_frame, nav_id, label, is_active)
             self.nav_buttons[nav_id] = btn
+            self.nav_indicators[nav_id] = indicator
 
-        # Settings at bottom
+        # Settings at bottom - 8px grid
         settings_frame = ctk.CTkFrame(self, fg_color="transparent")
-        settings_frame.pack(side="bottom", fill="x", pady=16)
+        settings_frame.pack(side="bottom", fill="x", pady=SPACING['md'])
 
         settings_btn = ctk.CTkButton(
             settings_frame,
             text="  Settings",
-            font=ctk.CTkFont(size=13),
+            font=ctk.CTkFont(family="Inter", size=13),
             fg_color="transparent",
             hover_color=COLORS['bg_hover'],
             anchor="w",
             height=40,
             text_color=COLORS['fg_dim'],
-            corner_radius=8
+            corner_radius=4
         )
-        settings_btn.pack(fill="x", padx=8)
+        settings_btn.pack(fill="x", padx=SPACING['sm'])
 
     def _create_nav_button(self, parent, nav_id, label, is_active=False):
-        """Create a navigation button."""
+        """Create a navigation button with vertical accent indicator."""
         # Icon mapping
         icons = {
-            "dashboard": "",
-            "clients": "",
-            "samples": "",
-            "projects": "",
-            "roadmap": "",
+            "browse": "\U0001f4c1",  # Folder icon
         }
 
         icon = icons.get(nav_id, "")
         text = f"  {icon}  {label}" if icon else f"  {label}"
 
-        btn = ctk.CTkButton(
-            parent,
-            text=text,
-            font=ctk.CTkFont(size=13),
+        # Container for indicator + button
+        row = ctk.CTkFrame(parent, fg_color="transparent", height=40)
+        row.pack(fill="x", pady=SPACING['xs'])
+        row.pack_propagate(False)
+
+        # Vertical accent indicator (2px wide bar on left)
+        indicator = ctk.CTkFrame(
+            row,
+            width=2,
             fg_color=COLORS['accent'] if is_active else "transparent",
-            hover_color=COLORS['accent_hover'] if is_active else COLORS['bg_hover'],
+            corner_radius=1
+        )
+        indicator.pack(side="left", fill="y")
+
+        # Navigation button
+        btn = ctk.CTkButton(
+            row,
+            text=text,
+            font=ctk.CTkFont(family="Inter", size=13),
+            fg_color="transparent",
+            hover_color=COLORS['bg_hover'],
             anchor="w",
             height=40,
-            corner_radius=8,
+            corner_radius=4,
             text_color=COLORS['fg'] if is_active else COLORS['fg_secondary'],
             command=lambda nid=nav_id: self._on_nav_click(nid)
         )
-        btn.pack(fill="x", padx=8, pady=2)
-        return btn
+        btn.pack(side="left", fill="x", expand=True, padx=(SPACING['sm'], SPACING['sm']))
+
+        return btn, indicator
 
     def _on_nav_click(self, nav_id):
         """Handle navigation click."""
@@ -110,18 +109,20 @@ class Sidebar(ctk.CTkFrame):
         # Reset old active button
         if self.active_nav in self.nav_buttons:
             self.nav_buttons[self.active_nav].configure(
-                fg_color="transparent",
-                hover_color=COLORS['bg_hover'],
                 text_color=COLORS['fg_secondary']
+            )
+            self.nav_indicators[self.active_nav].configure(
+                fg_color="transparent"
             )
 
         # Set new active button
         self.active_nav = nav_id
         if nav_id in self.nav_buttons:
             self.nav_buttons[nav_id].configure(
-                fg_color=COLORS['accent'],
-                hover_color=COLORS['accent_hover'],
                 text_color=COLORS['fg']
+            )
+            self.nav_indicators[nav_id].configure(
+                fg_color=COLORS['accent']
             )
 
         if self.on_nav_change:

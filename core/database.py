@@ -58,7 +58,10 @@ class DatabaseManager:
                 bitrate INTEGER,
                 sample_rate INTEGER,
                 name TEXT,
-                is_favorite INTEGER DEFAULT 0
+                is_favorite INTEGER DEFAULT 0,
+                detected_bpm TEXT,
+                detected_key TEXT,
+                analysis_date REAL
             )
         ''')
 
@@ -73,6 +76,14 @@ class DatabaseManager:
         columns = [col[1] for col in cursor.fetchall()]
         if 'is_favorite' not in columns:
             cursor.execute('ALTER TABLE samples ADD COLUMN is_favorite INTEGER DEFAULT 0')
+
+        # Migration: Add audio analysis columns if they don't exist
+        if 'detected_bpm' not in columns:
+            cursor.execute('ALTER TABLE samples ADD COLUMN detected_bpm TEXT')
+        if 'detected_key' not in columns:
+            cursor.execute('ALTER TABLE samples ADD COLUMN detected_key TEXT')
+        if 'analysis_date' not in columns:
+            cursor.execute('ALTER TABLE samples ADD COLUMN analysis_date REAL')
 
         # Create collections table
         cursor.execute('''
@@ -91,6 +102,15 @@ class DatabaseManager:
                 added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (collection_id, sample_path),
                 FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
+                FOREIGN KEY (sample_path) REFERENCES samples(path) ON DELETE CASCADE
+            )
+        ''')
+
+        # Create recent_samples table for tracking recently played
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS recent_samples (
+                sample_path TEXT PRIMARY KEY,
+                played_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (sample_path) REFERENCES samples(path) ON DELETE CASCADE
             )
         ''')
@@ -307,6 +327,142 @@ class DatabaseManager:
         row = cursor.fetchone()
         return row and row['is_favorite'] == 1
 
+    # ==================== Global Search Methods ====================
+
+    def search_samples(self, query: str, limit: int = 500) -> List[Dict]:
+        """
+        Search for samples across the entire library.
+
+        Args:
+            query: Search query string.
+            limit: Maximum number of results to return.
+
+        Returns:
+            List of sample dicts matching the query.
+        """
+        if not query or not query.strip():
+            return []
+
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        # Prepare search pattern
+        search_pattern = f'%{query.strip()}%'
+
+        # Search across multiple fields
+        cursor.execute('''
+            SELECT * FROM samples
+            WHERE filename LIKE ?
+               OR title LIKE ?
+               OR artist LIKE ?
+               OR album LIKE ?
+               OR genre LIKE ?
+               OR name LIKE ?
+               OR bpm LIKE ?
+               OR key LIKE ?
+               OR detected_bpm LIKE ?
+               OR detected_key LIKE ?
+            ORDER BY filename ASC
+            LIMIT ?
+        ''', (search_pattern,) * 10 + (limit,))
+
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    # ==================== Audio Analysis Methods ====================
+
+    def update_analysis(self, path: str, detected_bpm: str, detected_key: str):
+        """
+        Update the analysis results for a sample.
+
+        Args:
+            path: Full path to the audio file.
+            detected_bpm: Detected BPM value.
+            detected_key: Detected musical key.
+        """
+        import time
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE samples
+            SET detected_bpm = ?, detected_key = ?, analysis_date = ?
+            WHERE path = ?
+        ''', (detected_bpm, detected_key, time.time(), path))
+        conn.commit()
+
+    def get_analysis(self, path: str) -> Optional[Dict]:
+        """
+        Get the analysis results for a sample.
+
+        Args:
+            path: Full path to the audio file.
+
+        Returns:
+            Dict with detected_bpm, detected_key, analysis_date or None.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT detected_bpm, detected_key, analysis_date
+            FROM samples WHERE path = ?
+        ''', (path,))
+        row = cursor.fetchone()
+        if row and row['analysis_date']:
+            return {
+                'detected_bpm': row['detected_bpm'],
+                'detected_key': row['detected_key'],
+                'analysis_date': row['analysis_date']
+            }
+        return None
+
+    def get_samples_needing_analysis(self, folder_path: str = None) -> List[Dict]:
+        """
+        Get samples that have no BPM/Key and haven't been analyzed.
+
+        Args:
+            folder_path: Optional folder to filter by (prefix match).
+
+        Returns:
+            List of sample dicts needing analysis.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        if folder_path:
+            cursor.execute('''
+                SELECT * FROM samples
+                WHERE path LIKE ?
+                AND (bpm = '' OR bpm IS NULL)
+                AND (key = '' OR key IS NULL)
+                AND analysis_date IS NULL
+            ''', (folder_path + '%',))
+        else:
+            cursor.execute('''
+                SELECT * FROM samples
+                WHERE (bpm = '' OR bpm IS NULL)
+                AND (key = '' OR key IS NULL)
+                AND analysis_date IS NULL
+            ''')
+
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    def clear_analysis(self, path: str):
+        """
+        Clear analysis results for a sample (to allow re-analysis).
+
+        Args:
+            path: Full path to the audio file.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE samples
+            SET detected_bpm = NULL, detected_key = NULL, analysis_date = NULL
+            WHERE path = ?
+        ''', (path,))
+        conn.commit()
+
     def close(self):
         """Close the database connection."""
         if self._conn:
@@ -511,6 +667,77 @@ class DatabaseManager:
             (collection_id, sample_path)
         )
         return cursor.fetchone() is not None
+
+    # ==================== Recent Samples Methods ====================
+
+    def add_to_recent(self, sample_path: str, max_recent: int = 50):
+        """
+        Add a sample to the recently played list.
+
+        Args:
+            sample_path: Path to the sample file.
+            max_recent: Maximum number of recent samples to keep.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        # Insert or update the played timestamp
+        cursor.execute('''
+            INSERT OR REPLACE INTO recent_samples (sample_path, played_at)
+            VALUES (?, CURRENT_TIMESTAMP)
+        ''', (sample_path,))
+
+        # Trim old entries to keep only max_recent
+        cursor.execute('''
+            DELETE FROM recent_samples
+            WHERE sample_path NOT IN (
+                SELECT sample_path FROM recent_samples
+                ORDER BY played_at DESC
+                LIMIT ?
+            )
+        ''', (max_recent,))
+
+        conn.commit()
+
+    def get_recent_samples(self, limit: int = 50) -> List[Dict]:
+        """
+        Get recently played samples.
+
+        Args:
+            limit: Maximum number of samples to return.
+
+        Returns:
+            List of sample dicts, most recent first.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT s.* FROM samples s
+            JOIN recent_samples r ON s.path = r.sample_path
+            ORDER BY r.played_at DESC
+            LIMIT ?
+        ''', (limit,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    def get_recent_count(self) -> int:
+        """
+        Get the count of recently played samples.
+
+        Returns:
+            Number of samples in recent list.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(*) FROM recent_samples')
+        return cursor.fetchone()[0]
+
+    def clear_recent(self):
+        """Clear all recently played samples."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM recent_samples')
+        conn.commit()
 
 
 # Global database instance (singleton pattern)

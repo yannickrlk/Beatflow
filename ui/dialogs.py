@@ -3,7 +3,21 @@
 import os
 import customtkinter as ctk
 from typing import Dict, Callable, Optional, List
-from ui.theme import COLORS
+from ui.theme import COLORS, SPACING
+
+# Shell integration (Windows only)
+try:
+    from core.shell_integration import (
+        is_shell_integration_enabled,
+        enable_shell_integration,
+        disable_shell_integration,
+        WINREG_AVAILABLE
+    )
+except ImportError:
+    WINREG_AVAILABLE = False
+    is_shell_integration_enabled = lambda: False
+    enable_shell_integration = lambda: (False, "Not available")
+    disable_shell_integration = lambda: (False, "Not available")
 
 
 class MetadataEditDialog(ctk.CTkToplevel):
@@ -108,15 +122,19 @@ class MetadataEditDialog(ctk.CTkToplevel):
         row_frame = ctk.CTkFrame(form, fg_color="transparent")
         row_frame.pack(fill="x", pady=(0, 12))
 
-        # BPM
+        # BPM - use detected value if no embedded value
+        bpm_value = self.sample.get('bpm', '') or self.sample.get('detected_bpm', '')
+        bpm_is_detected = not self.sample.get('bpm') and self.sample.get('detected_bpm')
+
         bpm_frame = ctk.CTkFrame(row_frame, fg_color="transparent")
         bpm_frame.pack(side="left", fill="x", expand=True, padx=(0, 8))
 
+        bpm_label_text = "BPM (detected)" if bpm_is_detected else "BPM"
         bpm_label = ctk.CTkLabel(
             bpm_frame,
-            text="BPM",
+            text=bpm_label_text,
             font=ctk.CTkFont(size=12),
-            text_color=COLORS['fg_secondary']
+            text_color=COLORS['accent_secondary'] if bpm_is_detected else COLORS['fg_secondary']
         )
         bpm_label.pack(anchor="w")
 
@@ -128,17 +146,21 @@ class MetadataEditDialog(ctk.CTkToplevel):
             height=36
         )
         self.bpm_entry.pack(fill="x", pady=(4, 0))
-        self.bpm_entry.insert(0, self.sample.get('bpm', ''))
+        self.bpm_entry.insert(0, bpm_value)
 
-        # Key
+        # Key - use detected value if no embedded value
+        key_value = self.sample.get('key', '') or self.sample.get('detected_key', '')
+        key_is_detected = not self.sample.get('key') and self.sample.get('detected_key')
+
         key_frame = ctk.CTkFrame(row_frame, fg_color="transparent")
         key_frame.pack(side="left", fill="x", expand=True, padx=(8, 0))
 
+        key_label_text = "Key (detected)" if key_is_detected else "Key"
         key_label = ctk.CTkLabel(
             key_frame,
-            text="Key",
+            text=key_label_text,
             font=ctk.CTkFont(size=12),
-            text_color=COLORS['fg_secondary']
+            text_color=COLORS['accent_secondary'] if key_is_detected else COLORS['fg_secondary']
         )
         key_label.pack(anchor="w")
 
@@ -150,7 +172,7 @@ class MetadataEditDialog(ctk.CTkToplevel):
             height=36
         )
         self.key_entry.pack(fill="x", pady=(4, 0))
-        self.key_entry.insert(0, self.sample.get('key', ''))
+        self.key_entry.insert(0, key_value)
 
         # Genre
         self.genre_entry = self._create_field(form, "Genre", self.sample.get('genre', ''))
@@ -500,3 +522,166 @@ class AddToCollectionDialog(ctk.CTkToplevel):
         """Handle cancel."""
         self.result = None
         self.destroy()
+
+
+class SettingsDialog(ctk.CTkToplevel):
+    """Settings dialog for Beatflow."""
+
+    def __init__(self, parent, config_manager):
+        super().__init__(parent)
+
+        self.config_manager = config_manager
+
+        # Window setup
+        self.title("Settings")
+        self.geometry("450x350")
+        self.resizable(False, False)
+        self.configure(fg_color=COLORS['bg_dark'])
+
+        # Make modal
+        self.transient(parent)
+        self.grab_set()
+
+        # Center on parent
+        self.update_idletasks()
+        x = parent.winfo_rootx() + (parent.winfo_width() - 450) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - 350) // 2
+        self.geometry(f"+{x}+{y}")
+
+        self._build_ui()
+
+    def _build_ui(self):
+        """Build the settings UI."""
+        # Header
+        header = ctk.CTkFrame(self, fg_color="transparent")
+        header.pack(fill="x", padx=SPACING['lg'], pady=(SPACING['lg'], SPACING['md']))
+
+        title_label = ctk.CTkLabel(
+            header,
+            text="Settings",
+            font=ctk.CTkFont(size=20, weight="bold"),
+            text_color=COLORS['fg']
+        )
+        title_label.pack(side="left")
+
+        # Settings container
+        settings_frame = ctk.CTkFrame(self, fg_color=COLORS['bg_card'], corner_radius=8)
+        settings_frame.pack(fill="both", expand=True, padx=SPACING['lg'], pady=(0, SPACING['lg']))
+
+        # OS Integration Section
+        section_label = ctk.CTkLabel(
+            settings_frame,
+            text="OS Integration",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color=COLORS['fg']
+        )
+        section_label.pack(anchor="w", padx=SPACING['md'], pady=(SPACING['md'], SPACING['sm']))
+
+        # Shell integration toggle
+        shell_frame = ctk.CTkFrame(settings_frame, fg_color="transparent")
+        shell_frame.pack(fill="x", padx=SPACING['md'], pady=SPACING['sm'])
+
+        shell_label = ctk.CTkLabel(
+            shell_frame,
+            text="Windows Explorer Integration",
+            font=ctk.CTkFont(size=13),
+            text_color=COLORS['fg']
+        )
+        shell_label.pack(side="left")
+
+        self.shell_switch_var = ctk.BooleanVar(value=is_shell_integration_enabled())
+        self.shell_switch = ctk.CTkSwitch(
+            shell_frame,
+            text="",
+            variable=self.shell_switch_var,
+            onvalue=True,
+            offvalue=False,
+            fg_color=COLORS['bg_hover'],
+            progress_color=COLORS['accent'],
+            button_color=COLORS['fg'],
+            button_hover_color=COLORS['fg_secondary'],
+            command=self._on_shell_toggle
+        )
+        self.shell_switch.pack(side="right")
+
+        # Disable if not on Windows
+        if not WINREG_AVAILABLE:
+            self.shell_switch.configure(state="disabled")
+
+        shell_desc = ctk.CTkLabel(
+            settings_frame,
+            text="Add 'Add to Beatflow' to folder right-click menu",
+            font=ctk.CTkFont(size=11),
+            text_color=COLORS['fg_dim']
+        )
+        shell_desc.pack(anchor="w", padx=SPACING['md'])
+
+        # Status label
+        self.status_label = ctk.CTkLabel(
+            settings_frame,
+            text="",
+            font=ctk.CTkFont(size=11),
+            text_color=COLORS['accent']
+        )
+        self.status_label.pack(anchor="w", padx=SPACING['md'], pady=(SPACING['xs'], 0))
+
+        # Separator
+        separator = ctk.CTkFrame(settings_frame, height=1, fg_color=COLORS['border'])
+        separator.pack(fill="x", padx=SPACING['md'], pady=SPACING['md'])
+
+        # App Info Section
+        info_label = ctk.CTkLabel(
+            settings_frame,
+            text="About",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color=COLORS['fg']
+        )
+        info_label.pack(anchor="w", padx=SPACING['md'], pady=(0, SPACING['sm']))
+
+        version_label = ctk.CTkLabel(
+            settings_frame,
+            text="Beatflow v1.0 - Sample Browser for Producers",
+            font=ctk.CTkFont(size=12),
+            text_color=COLORS['fg_secondary']
+        )
+        version_label.pack(anchor="w", padx=SPACING['md'])
+
+        tech_label = ctk.CTkLabel(
+            settings_frame,
+            text="Python + CustomTkinter + Pygame",
+            font=ctk.CTkFont(size=11),
+            text_color=COLORS['fg_dim']
+        )
+        tech_label.pack(anchor="w", padx=SPACING['md'], pady=(2, SPACING['md']))
+
+        # Close button
+        close_btn = ctk.CTkButton(
+            self,
+            text="Close",
+            font=ctk.CTkFont(size=13),
+            fg_color=COLORS['bg_hover'],
+            hover_color=COLORS['bg_card'],
+            text_color=COLORS['fg'],
+            height=38,
+            width=100,
+            corner_radius=6,
+            command=self.destroy
+        )
+        close_btn.pack(pady=(0, SPACING['lg']))
+
+        # Bind escape
+        self.bind("<Escape>", lambda e: self.destroy())
+
+    def _on_shell_toggle(self):
+        """Handle shell integration toggle."""
+        if self.shell_switch_var.get():
+            success, message = enable_shell_integration()
+        else:
+            success, message = disable_shell_integration()
+
+        if success:
+            self.status_label.configure(text=message, text_color=COLORS['success'])
+        else:
+            self.status_label.configure(text=message, text_color=COLORS['error'])
+            # Revert switch on failure
+            self.shell_switch_var.set(not self.shell_switch_var.get())

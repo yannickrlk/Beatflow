@@ -3,22 +3,50 @@
 import os
 import customtkinter as ctk
 from tkinter import filedialog
-from ui.theme import COLORS
+
+# Optional drag & drop support
+try:
+    import tkinterdnd2
+    from tkinterdnd2 import TkinterDnD
+    TKDND_AVAILABLE = True
+except ImportError:
+    TKDND_AVAILABLE = False
+    tkinterdnd2 = None
+    TkinterDnD = None
+
+from ui.theme import COLORS, SPACING
 from ui.sidebar import Sidebar
 from ui.tree_view import LibraryTreeView
 from ui.library import SampleList
 from ui.player import FooterPlayer
-from ui.dialogs import MetadataEditDialog, NewCollectionDialog, AddToCollectionDialog
+from ui.dialogs import MetadataEditDialog, NewCollectionDialog, AddToCollectionDialog, SettingsDialog
 from core.config import ConfigManager
 from core.scanner import LibraryScanner
 from core.database import get_database
 
 
-class BeatflowApp(ctk.CTk):
+# Create base class with drag & drop support if available
+if TKDND_AVAILABLE:
+    class _DnDMixin(TkinterDnD.DnDWrapper):
+        """Mixin to add drag & drop methods to CTk."""
+        pass
+
+    class BeatflowAppBase(ctk.CTk, _DnDMixin):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.TkdndVersion = TkinterDnD._require(self)
+else:
+    class BeatflowAppBase(ctk.CTk):
+        pass
+
+
+class BeatflowApp(BeatflowAppBase):
     """Main Beatflow application window."""
 
-    def __init__(self):
+    def __init__(self, folder_to_add=None):
         super().__init__()
+
+        self.folder_to_add = folder_to_add  # CLI argument
 
         self.title("Beatflow")
         self.geometry("1400x850")
@@ -38,6 +66,74 @@ class BeatflowApp(ctk.CTk):
 
         self._build_ui()
         self._bind_shortcuts()
+        self._setup_drag_drop()
+
+        # Process CLI folder argument after UI is ready
+        if self.folder_to_add:
+            self.after(100, self._process_cli_folder)
+
+    def _process_cli_folder(self):
+        """Process folder passed via command line."""
+        if self.folder_to_add and os.path.isdir(self.folder_to_add):
+            # Add folder if not already in library
+            if self.config_manager.add_folder(self.folder_to_add):
+                self.tree_view.update_roots(self.config_manager.root_folders)
+            # Load the folder
+            self.sample_list.load_folder(self.folder_to_add)
+
+    def _setup_drag_drop(self):
+        """Setup drag and drop for folders."""
+        if not TKDND_AVAILABLE:
+            return
+        try:
+            # Register as drop target for files
+            self.drop_target_register(tkinterdnd2.DND_FILES)
+
+            # Bind the drop event
+            self.dnd_bind('<<Drop>>', self._on_drop)
+            print("Drag & drop enabled successfully")
+        except Exception as e:
+            print(f"Drag & drop setup failed: {e}")
+
+    def _on_drop(self, event):
+        """Handle dropped files/folders (tkinterdnd2 event)."""
+        self._process_dropped_paths(event.data)
+
+    def _process_dropped_paths(self, data):
+        """Process dropped path data."""
+        if isinstance(data, (list, tuple)):
+            paths = list(data)
+        elif isinstance(data, str):
+            # Parse dropped paths (may be space-separated or in braces)
+            if data.startswith('{') and data.endswith('}'):
+                # Single path with spaces
+                paths = [data[1:-1]]
+            elif '{' in data:
+                # Multiple paths with braces
+                import re
+                paths = re.findall(r'\{([^}]+)\}|(\S+)', data)
+                paths = [p[0] or p[1] for p in paths]
+            else:
+                # Multiple paths or single path without spaces
+                paths = data.split()
+        else:
+            return
+
+        for path in paths:
+            path = str(path).strip('{}')
+            if os.path.isdir(path):
+                # Always add to library and refresh tree view
+                was_added = self.config_manager.add_folder(path)
+                if was_added:
+                    # Refresh tree view to show the new folder
+                    self.tree_view.update_roots(self.config_manager.root_folders)
+
+                # Load the folder (shows only files in this folder, not subfolders)
+                self.sample_list.load_folder(path)
+
+                # Select the folder in the tree view for visual feedback
+                self.tree_view.select_folder(path)
+                break  # Only process first valid folder
 
     def _build_ui(self):
         """Build the main UI layout."""
@@ -54,8 +150,10 @@ class BeatflowApp(ctk.CTk):
             root_folders=self.config_manager.root_folders,
             command=self._on_folder_select,
             on_favorites=self._on_favorites_select,
+            on_recent=self._on_recent_select,
             on_collection=self._on_collection_select,
-            on_create_collection=self._on_create_collection
+            on_create_collection=self._on_create_collection,
+            on_remove_folder=self._remove_folder
         )
         self.tree_view.grid(row=1, column=1, sticky="nsew")
 
@@ -65,12 +163,19 @@ class BeatflowApp(ctk.CTk):
             on_play_request=self._on_play_request,
             on_edit_request=self._on_edit_request,
             on_favorite_change=self._on_favorite_change,
-            on_add_to_collection=self._on_add_to_collection
+            on_add_to_collection=self._on_add_to_collection,
+            on_add_folder=self._add_folder,  # For empty state button
+            on_seek_request=self._on_seek_request,  # Waveform click-to-seek
+            config_manager=self.config_manager  # For sort persistence
         )
         self.sample_list.grid(row=1, column=2, sticky="nsew")
 
         # Footer Player (spans columns 1-2)
-        self.player = FooterPlayer(self, on_volume_change=self._on_volume_change)
+        self.player = FooterPlayer(
+            self,
+            on_volume_change=self._on_volume_change,
+            on_progress=self._on_progress  # Waveform needle update
+        )
         self.player.grid(row=2, column=1, columnspan=2, sticky="ew")
 
         # Set initial volume from config
@@ -82,9 +187,9 @@ class BeatflowApp(ctk.CTk):
         topbar.grid(row=0, column=1, columnspan=2, sticky="ew")
         topbar.grid_propagate(False)
 
-        # Search bar
+        # Search bar (left side) - 8px grid
         search_frame = ctk.CTkFrame(topbar, fg_color="transparent")
-        search_frame.pack(side="left", fill="y", padx=20)
+        search_frame.pack(side="left", fill="y", padx=SPACING['lg'])
 
         self.search_var = ctk.StringVar()
         self.search_var.trace('w', self._on_search_change)
@@ -92,70 +197,63 @@ class BeatflowApp(ctk.CTk):
             search_frame,
             textvariable=self.search_var,
             placeholder_text="Search samples...",
-            width=350,
-            height=36,
-            font=ctk.CTkFont(size=13),
+            width=280,  # Reduced to make room for toggle
+            height=40,  # 8px grid: 40 = 5*8
+            font=ctk.CTkFont(family="Inter", size=13),
             fg_color=COLORS['bg_input'],
-            border_width=0,
-            corner_radius=18
+            border_width=1,
+            border_color=COLORS['border'],
+            corner_radius=8
         )
-        search_entry.pack(side="left", pady=10)
+        search_entry.pack(side="left", pady=SPACING['sm'])
 
-        # Right side actions
-        actions_frame = ctk.CTkFrame(topbar, fg_color="transparent")
-        actions_frame.pack(side="right", fill="y", padx=20)
-
-        # Profile avatar placeholder
-        avatar = ctk.CTkLabel(
-            actions_frame,
-            text="",
-            width=36,
-            height=36,
+        # Search mode toggle (Folder / Library)
+        self.search_mode_var = ctk.StringVar(value="folder")
+        self.search_mode_toggle = ctk.CTkSegmentedButton(
+            search_frame,
+            values=["Folder", "Library"],
+            variable=self.search_mode_var,
+            font=ctk.CTkFont(family="Inter", size=11),
             fg_color=COLORS['bg_hover'],
-            corner_radius=18
+            selected_color=COLORS['accent'],
+            selected_hover_color=COLORS['accent_hover'],
+            unselected_color=COLORS['bg_hover'],
+            unselected_hover_color=COLORS['bg_card'],
+            height=32,
+            corner_radius=4,
+            command=self._on_search_mode_change
         )
-        avatar.pack(side="right", pady=10)
+        self.search_mode_toggle.set("Folder")
+        self.search_mode_toggle.pack(side="left", padx=(SPACING['sm'], 0), pady=SPACING['sm'])
 
-        # New Project button
-        new_btn = ctk.CTkButton(
-            actions_frame,
-            text="+ New Project",
-            font=ctk.CTkFont(size=13, weight="bold"),
-            fg_color=COLORS['accent'],
-            hover_color=COLORS['accent_hover'],
-            height=36,
-            corner_radius=8,
-            text_color="#ffffff"
-        )
-        new_btn.pack(side="right", padx=(0, 12), pady=10)
-
-        # Notification bell
-        bell_btn = ctk.CTkButton(
-            actions_frame,
-            text="\U0001f514",
-            width=36,
-            height=36,
-            font=ctk.CTkFont(size=16),
+        # Settings button (right side)
+        settings_btn = ctk.CTkButton(
+            topbar,
+            text="\u2699",  # Gear icon
+            font=ctk.CTkFont(size=18),
             fg_color="transparent",
             hover_color=COLORS['bg_hover'],
-            corner_radius=18,
-            text_color=COLORS['fg_secondary']
+            height=40,
+            width=40,
+            corner_radius=4,
+            text_color=COLORS['fg_secondary'],
+            command=self._open_settings
         )
-        bell_btn.pack(side="right", padx=(0, 8), pady=10)
+        settings_btn.pack(side="right", padx=(0, SPACING['lg']), pady=SPACING['sm'])
 
-        # Add folder button
+        # Add folder button (right side) - 8px grid
         add_btn = ctk.CTkButton(
             topbar,
             text="+ Add Folder",
-            font=ctk.CTkFont(size=12),
-            fg_color=COLORS['bg_hover'],
-            hover_color=COLORS['accent'],
-            height=32,
-            corner_radius=6,
-            text_color=COLORS['fg_secondary'],
+            font=ctk.CTkFont(family="Inter", size=12),
+            fg_color=COLORS['accent'],
+            hover_color=COLORS['accent_hover'],
+            height=40,  # 8px grid
+            corner_radius=4,
+            text_color="#ffffff",
             command=self._add_folder
         )
-        add_btn.pack(side="left", padx=(0, 10), pady=12)
+        add_btn.pack(side="right", padx=(0, SPACING['sm']), pady=SPACING['sm'])
 
     def _bind_shortcuts(self):
         """Bind keyboard shortcuts."""
@@ -194,26 +292,61 @@ class BeatflowApp(ctk.CTk):
             if self.config_manager.add_folder(folder):
                 self.tree_view.update_roots(self.config_manager.root_folders)
 
+    def _remove_folder(self, folder_path):
+        """Remove a folder from the library."""
+        if self.config_manager.remove_folder(folder_path):
+            self.tree_view.update_roots(self.config_manager.root_folders)
+            # Clear sample list if it was showing the removed folder
+            if hasattr(self.sample_list, 'current_path') and self.sample_list.current_path:
+                if self.sample_list.current_path.startswith(folder_path):
+                    self.sample_list.clear_samples()
+
     def _on_folder_select(self, path):
         """Handle folder selection from tree view."""
         self.sample_list.load_folder(path)
 
-    def _on_play_request(self, sample, playlist, index):
+    def _on_play_request(self, sample, playlist, index, toggle=False):
         """Handle play request from sample list."""
-        self.player.load_track(sample, playlist, index)
-        self.player.play()
+        if toggle:
+            # Toggle play/pause for current track
+            self.player.toggle_play_pause()
+        else:
+            # Load and play new track
+            self.player.load_track(sample, playlist, index)
+            self.player.play()
+
+            # Track in recently played
+            if sample:
+                db = get_database()
+                db.add_to_recent(sample['path'])
 
     def _on_volume_change(self, volume):
         """Handle volume change - persist to config."""
         self.config_manager.set_volume(volume)
 
+    def _on_progress(self, progress: float):
+        """Handle playback progress update - update waveform needle."""
+        self.sample_list.update_progress(progress)
+
+    def _on_seek_request(self, sample, percentage: float):
+        """Handle seek request from waveform click."""
+        self.player.seek(percentage)
+
     def _on_search_change(self, *args):
         """Handle search text change."""
-        self.sample_list.filter_samples(self.search_var.get())
+        is_global = self.search_mode_toggle.get() == "Library"
+        self.sample_list.filter_samples(self.search_var.get(), global_search=is_global)
+
+    def _on_search_mode_change(self, value):
+        """Handle search mode toggle change."""
+        # Re-run search with new mode if there's a query
+        if self.search_var.get().strip():
+            is_global = value == "Library"
+            self.sample_list.filter_samples(self.search_var.get(), global_search=is_global)
 
     def _on_nav_change(self, nav_id):
         """Handle navigation change."""
-        if nav_id == "samples":
+        if nav_id == "browse":
             # Clear sample list and let user select a folder from tree
             self.sample_list.clear_samples()
             self.sample_list.breadcrumb.configure(text="\U0001f4c1 Library")
@@ -339,6 +472,14 @@ class BeatflowApp(ctk.CTk):
 
         # Open edit dialog
         MetadataEditDialog(self, sample, on_save=on_save)
+
+    def _open_settings(self):
+        """Open the settings dialog."""
+        SettingsDialog(self, self.config_manager)
+
+    def _on_recent_select(self):
+        """Handle recent samples selection from sidebar."""
+        self.sample_list.load_recent()
 
 
 if __name__ == "__main__":

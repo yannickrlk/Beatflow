@@ -2,6 +2,9 @@
 description: Plan the next task, research dependencies, and prepare the project for the next developer phase.
 ---
 
+> [!IMPORTANT]
+> **Core Principle**: You do NOT write code. You are the "Brain" that researches, designs, and plans for the "Executioner" (Claude). Your goal is to prepare the project so another agent can execute the implementation flawlessly.
+
 1. **Read Documentation**
    - Read `implementation_plan.md` to identify the next incomplete phase or task.
    - Read `CONTEXT.md` to understand the current project state and architecture.

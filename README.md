@@ -1,65 +1,60 @@
 # Beatflow Sample Browser
 
-A modern, dark-themed audio sample browser built with Python and CustomTkinter. Designed for beatmakers to quickly browse, audition, and organize their sample libraries.
+A modern, high-performance audio sample browser for music producers. Organize, audition, and analyze your sample library with a sleek, cyber-premium interface.
 
-## Features
+> [!CAUTION]
+> **MANDATORY: Python 3.12**
+> Beatflow requires Python 3.12. Higher versions (like 3.14) currently crash due to `numba` and `librosa` compatibility issues.
+
+## 🚀 Key Features
 
 - 🎵 **Format Support**: WAV, MP3, OGG, FLAC, AIFF.
-- 🌑 **Modern UI**: Dark mode interface with a sleek design.
-- 📁 **Library Management**: Add/Remove multiple root folders.
-- 🔍 **Search & Filter**: Real-time filtering by name, BPM, or Key.
-- 🏷️ **Smart Tagging**: Auto-detects tags (e.g., "Kick", "Snare", "Loop") from filenames.
-- 🎹 **Metadata**: Auto-detects BPM and Key from filenames.
+- 🌑 **Cyber-Premium UI**: Modern dark-themed interface with 8px grid system and smooth animations.
+- 📁 **Library Management**: Add/Remove root folders with non-recursive browsing and sample counts.
+- 🌊 **Real-time Waveforms**: Disk-cached waveform visualization for every sample.
+- 🔍 **Global Search**: Search across your entire library or stay focused on a single folder.
+- 🎛️ **Advanced Filters**: Filter by BPM range, musical Key (with enharmonic support), and file format.
+- 🧠 **Smart Detection**: Automatic BPM and Key detection powered by `librosa`.
+- 🏷️ **Metadata Management**: Edit ID3 tags, rename files, and view technical stats (bitrate, duration).
+- ⭐ **Organization**: Favorites system and custom Collections to group your best sounds.
+- 🖥️ **OS Integration**: Drag & drop support and Windows context menu integration ("Add to Beatflow").
 
-## Installation
+## 🛠️ Installation
 
-### Prerequisites
+### 1. Prerequisites
+- **Python 3.12** ([Download here](https://www.python.org/downloads/release/python-3120/))
+- Git
 
-- Python 3.8 or higher
-- [pip](https://pip.pypa.io/en/stable/installation/)
+### 2. Setup
+```bash
+# Clone the repository
+git clone <repository-url>
+cd Beatflow
 
-### Steps
+# Install dependencies
+py -3.12 -m pip install -r requirements.txt
+```
 
-1. **Clone the repository** (or download the source code):
-   ```bash
-   git clone <repository-url>
-   cd Beatflow
-   ```
+## ⌨️ Usage
 
-2. **Install dependencies**:
-   It is recommended to use a virtual environment.
-   ```bash
-   python -m venv venv
-   # Windows
-   .\venv\Scripts\activate
-   # macOS/Linux
-   source venv/bin/activate
-   
-   pip install -r requirements.txt
-   ```
+### Running the App
+```bash
+py -3.12 main.py
+```
 
-## Usage
+### Controls
+- **Space**: Play/Pause toggle.
+- **Esc**: Stop playback.
+- **Left/Right Arrows**: Previous/Next track in current list.
+- **Drag & Drop**: Drop a folder from your OS directly into the app to add it.
 
-1. **Run the application**:
-   ```bash
-   python sample_browser.py
-   ```
+## ⚙️ Configuration
+Settings are persisted in `beatflow_config.json`, including your library folders and volume levels. Use the **Gear (⚙️)** icon in the top bar to toggle Windows Shell integration.
 
-2. **Add Samples**:
-   - Click the **+** button in the "Library Index" sidebar or **+ Scan Folders** in the main area.
-   - Select a folder on your computer containing audio samples.
+## 📦 Requirements
+- `customtkinter`: Modern UI components.
+- `pygame`: Robust audio engine.
+- `librosa`: Professional audio analysis.
+- `mutagen`: Metadata and tag editing.
+- `tkinterdnd2`: Advanced drag and drop support.
 
-3. **Browse & Play**:
-   - Click on a folder in the sidebar to view samples.
-   - Click the **Play (▶)** button on any sample card to preview.
-   - **Spacebar**: Toggle Play/Pause.
-   - **Esc**: Stop playback.
-
-## Configuration
-
-Configuration is saved automatically to `beatflow_config.json` in the application directory. This file stores your added root folders.
-
-## Requirements
-
-- `customtkinter>=5.2.0`: For the UI.
-- `pygame>=2.5.0`: For audio playback.

@@ -103,8 +103,19 @@ def _read_with_pydub(file_path: str) -> Optional[np.ndarray]:
         samples = samples / max_val
 
         return samples
+    except Exception:
+        # Fallback to librosa if pydub fails (e.g., ffmpeg not installed)
+        return _read_with_librosa(file_path)
+
+
+def _read_with_librosa(file_path: str) -> Optional[np.ndarray]:
+    """Read audio file using librosa (fallback when pydub/ffmpeg unavailable)."""
+    try:
+        import librosa
+        # Load audio at 22050 Hz mono (fast and sufficient for waveform)
+        y, sr = librosa.load(file_path, sr=22050, mono=True)
+        return y
     except ImportError:
-        print("pydub not installed, cannot read non-WAV files")
         return None
     except Exception:
         return None

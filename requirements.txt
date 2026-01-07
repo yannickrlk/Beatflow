@@ -1,5 +1,9 @@
+# IMPORTANT: Requires Python 3.12 (NOT 3.14 - crashes with librosa/numba)
+# Install: py -3.12 -m pip install -r requirements.txt
+
 # GUI
 customtkinter>=5.2.0
+tkinterdnd2>=0.3.0
 
 # Audio
 pygame>=2.5.0
@@ -10,3 +14,7 @@ mutagen>=1.45.0
 # Waveform generation
 numpy>=1.24.0
 Pillow>=10.0.0
+
+# Audio analysis (BPM/Key detection)
+# WARNING: librosa depends on numba, which crashes on Python 3.14
+librosa>=0.10.0

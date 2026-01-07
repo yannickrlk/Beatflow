@@ -1,8 +1,9 @@
 """Library Index / Tree View component for Beatflow."""
 
 import os
+import tkinter as tk
 import customtkinter as ctk
-from ui.theme import COLORS
+from ui.theme import COLORS, SPACING
 from core.scanner import LibraryScanner
 from core.database import get_database
 
@@ -10,29 +11,33 @@ from core.database import get_database
 class FolderNode(ctk.CTkFrame):
     """A single folder node in the tree view."""
 
-    def __init__(self, parent, folder_path, level, on_select, on_toggle, is_root=False, **kwargs):
+    def __init__(self, parent, folder_path, level, on_select, on_toggle, is_root=False,
+                 on_remove=None, **kwargs):
         super().__init__(parent, fg_color="transparent", **kwargs)
 
         self.folder_path = folder_path
         self.level = level
         self.on_select = on_select
         self.on_toggle = on_toggle
+        self.on_remove = on_remove  # Callback for removing root folders
         self.is_root = is_root
         self.is_expanded = False
         self.children_frame = None
         self.child_nodes = []
 
         self._build_ui()
+        if self.is_root:
+            self._bind_context_menu()
 
     def _build_ui(self):
         """Build the folder node UI."""
         folder_name = os.path.basename(self.folder_path)
-        indent = 12 * self.level
+        indent = SPACING['md'] * self.level  # 16px per level
 
         # Check if has subfolders
         has_subfolders = len(LibraryScanner.get_subfolders(self.folder_path)) > 0
 
-        # Row container
+        # Row container - 8px grid
         row = ctk.CTkFrame(self, fg_color="transparent", height=32)
         row.pack(fill="x")
         row.pack_propagate(False)
@@ -46,27 +51,27 @@ class FolderNode(ctk.CTkFrame):
         if has_subfolders:
             self.expand_btn = ctk.CTkButton(
                 row,
-                text="\u25b6",  # Right arrow
-                width=20,
-                height=20,
-                font=ctk.CTkFont(size=8),
+                text="\u25b8",  # Thin right arrow ▸
+                width=SPACING['lg'],  # 24px
+                height=SPACING['lg'],
+                font=ctk.CTkFont(size=10),
                 fg_color="transparent",
                 hover_color=COLORS['bg_hover'],
                 text_color=COLORS['fg_dim'],
                 corner_radius=4,
                 command=self._toggle_expand
             )
-            self.expand_btn.pack(side="left", padx=(4, 0))
+            self.expand_btn.pack(side="left", padx=(SPACING['xs'], 0))
         else:
             # Empty spacer for alignment
-            spacer = ctk.CTkFrame(row, fg_color="transparent", width=24)
-            spacer.pack(side="left", padx=(4, 0))
+            spacer = ctk.CTkFrame(row, fg_color="transparent", width=SPACING['lg'])
+            spacer.pack(side="left", padx=(SPACING['xs'], 0))
 
         # Folder button
         self.folder_btn = ctk.CTkButton(
             row,
             text=f" {folder_name}",
-            font=ctk.CTkFont(size=12),
+            font=ctk.CTkFont(family="Inter", size=12),
             fg_color="transparent",
             hover_color=COLORS['bg_hover'],
             anchor="w",
@@ -83,14 +88,14 @@ class FolderNode(ctk.CTkFrame):
             count_label = ctk.CTkLabel(
                 row,
                 text=str(count),
-                font=ctk.CTkFont(size=10),
+                font=ctk.CTkFont(family="Consolas", size=10),
                 fg_color=COLORS['bg_hover'],
                 corner_radius=3,
                 text_color=COLORS['fg_dim'],
-                width=35,
+                width=32,
                 height=18
             )
-            count_label.pack(side="right", padx=(0, 8))
+            count_label.pack(side="right", padx=(0, SPACING['sm']))
 
     def _on_click(self):
         """Handle folder click."""
@@ -113,10 +118,10 @@ class FolderNode(ctk.CTkFrame):
 
         try:
             if self.is_expanded:
-                self.expand_btn.configure(text="\u25bc")  # Down arrow
+                self.expand_btn.configure(text="\u25be")  # Thin down arrow ▾
                 self._create_children()
             else:
-                self.expand_btn.configure(text="\u25b6")  # Right arrow
+                self.expand_btn.configure(text="\u25b8")  # Thin right arrow ▸
                 self._destroy_children()
 
             self.on_toggle(self.folder_path, self.is_expanded)
@@ -166,19 +171,45 @@ class FolderNode(ctk.CTkFrame):
         except Exception:
             pass  # Widget was destroyed
 
+    def _bind_context_menu(self):
+        """Bind right-click context menu for root folders."""
+        self.folder_btn.bind("<Button-3>", self._show_context_menu)
+
+    def _show_context_menu(self, event):
+        """Show context menu for removing folder from library."""
+        import tkinter as tk
+
+        menu = tk.Menu(self, tearoff=0, bg=COLORS['bg_dark'], fg=COLORS['fg'],
+                       activebackground=COLORS['accent'], activeforeground='#ffffff',
+                       relief='flat', borderwidth=1)
+        menu.add_command(label="Remove from Library", command=self._on_remove_click)
+
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
+    def _on_remove_click(self):
+        """Handle remove from library click."""
+        if self.on_remove:
+            self.on_remove(self.folder_path)
+
 
 class LibraryTreeView(ctk.CTkFrame):
     """Library index showing folders with expandable tree structure."""
 
     def __init__(self, master, root_folders=None, command=None, on_favorites=None,
-                 on_collection=None, on_create_collection=None, **kwargs):
+                 on_recent=None, on_collection=None, on_create_collection=None,
+                 on_remove_folder=None, **kwargs):
         super().__init__(master, width=220, corner_radius=0, fg_color=COLORS['bg_dark'], **kwargs)
         self.grid_propagate(False)
 
         self.command = command
         self.on_favorites = on_favorites  # Callback for favorites selection
+        self.on_recent = on_recent  # Callback for recent selection
         self.on_collection = on_collection  # Callback for collection selection
         self.on_create_collection = on_create_collection  # Callback for new collection
+        self.on_remove_folder = on_remove_folder  # Callback for removing root folders
         self.root_folders = root_folders or []
         self.root_nodes = []
         self.selected_node = None
@@ -235,11 +266,16 @@ class LibraryTreeView(ctk.CTkFrame):
         self.selected_node = None
         self.favorites_btn = None
         self.favorites_selected = False
+        self.recent_btn = None
+        self.recent_selected = False
         self.collection_btns = {}
         self.selected_collection_id = None
 
         # Add Favorites item at the top
         self._create_favorites_item()
+
+        # Add Recent item
+        self._create_recent_item()
 
         # Add Collections section
         self._create_collections_section()
@@ -257,7 +293,8 @@ class LibraryTreeView(ctk.CTkFrame):
                         level=0,
                         on_select=self._on_folder_select,
                         on_toggle=self._on_folder_toggle,
-                        is_root=True
+                        is_root=True,
+                        on_remove=self.on_remove_folder
                     )
                     node.pack(fill="x", pady=1)
                     self.root_nodes.append(node)
@@ -320,12 +357,101 @@ class LibraryTreeView(ctk.CTkFrame):
         # Deselect any selected collection
         self._deselect_collection()
 
+        # Deselect recent
+        self._deselect_recent()
+
         # Select favorites
         self.favorites_selected = True
         self.favorites_btn.configure(fg_color=COLORS['bg_hover'])
 
         if self.on_favorites:
             self.on_favorites()
+
+    def _create_recent_item(self):
+        """Create the Recent item below Favorites."""
+        # Row container
+        row = ctk.CTkFrame(self.scroll_frame, fg_color="transparent", height=32)
+        row.pack(fill="x", pady=1)
+        row.pack_propagate(False)
+
+        # Clock icon spacer (to align with folder expand buttons)
+        spacer = ctk.CTkFrame(row, fg_color="transparent", width=24)
+        spacer.pack(side="left", padx=(4, 0))
+
+        # Recent button
+        self.recent_btn = ctk.CTkButton(
+            row,
+            text="\U0001f552 Recent",
+            font=ctk.CTkFont(size=12),
+            fg_color="transparent",
+            hover_color=COLORS['bg_hover'],
+            anchor="w",
+            height=28,
+            corner_radius=4,
+            text_color=COLORS['fg_secondary'],
+            command=self._on_recent_click
+        )
+        self.recent_btn.pack(side="left", fill="x", expand=True)
+
+        # Recent count
+        db = get_database()
+        count = db.get_recent_count()
+        if count > 0:
+            self.recent_count_label = ctk.CTkLabel(
+                row,
+                text=str(count),
+                font=ctk.CTkFont(size=10),
+                fg_color=COLORS['bg_hover'],
+                corner_radius=3,
+                text_color=COLORS['fg_dim'],
+                width=35,
+                height=18
+            )
+            self.recent_count_label.pack(side="right", padx=(0, 8))
+
+    def _on_recent_click(self):
+        """Handle recent click."""
+        # Deselect any selected folder
+        if self.selected_node:
+            try:
+                if self.selected_node.winfo_exists():
+                    self.selected_node.set_selected(False)
+            except Exception:
+                pass
+            self.selected_node = None
+
+        # Deselect any selected collection
+        self._deselect_collection()
+
+        # Deselect favorites
+        self._deselect_favorites()
+
+        # Select recent
+        self.recent_selected = True
+        self.recent_btn.configure(fg_color=COLORS['bg_hover'])
+
+        if self.on_recent:
+            self.on_recent()
+
+    def _deselect_recent(self):
+        """Deselect recent item."""
+        if self.recent_selected and self.recent_btn:
+            try:
+                if self.recent_btn.winfo_exists():
+                    self.recent_btn.configure(fg_color="transparent")
+            except Exception:
+                pass
+            self.recent_selected = False
+
+    def _deselect_favorites(self):
+        """Deselect favorites item."""
+        if self.favorites_selected and self.favorites_btn:
+            try:
+                if self.favorites_btn.winfo_exists():
+                    self.favorites_btn.configure(fg_color="transparent")
+            except Exception:
+                pass
+            self.favorites_selected = False
 
     def _create_collections_section(self):
         """Create the Collections section."""
@@ -517,3 +643,28 @@ class LibraryTreeView(ctk.CTkFrame):
         if folder_path not in self.root_folders:
             self.root_folders.append(folder_path)
             self.refresh()
+
+    def select_folder(self, folder_path):
+        """Select a folder by path in the tree view."""
+        # Deselect current selection
+        if self.selected_node:
+            try:
+                if self.selected_node.winfo_exists():
+                    self.selected_node.set_selected(False)
+            except Exception:
+                pass
+            self.selected_node = None
+
+        # Deselect favorites and collections
+        self._deselect_favorites()
+        self._deselect_collection()
+        self._deselect_recent()
+
+        # Find and select the matching root node
+        for node in self.root_nodes:
+            if node.folder_path == folder_path:
+                self.selected_node = node
+                node.set_selected(True)
+                return True
+
+        return False

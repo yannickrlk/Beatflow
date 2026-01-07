@@ -11,13 +11,15 @@ from ui.theme import COLORS
 class FooterPlayer(ctk.CTkFrame):
     """Global audio player footer with playback controls."""
 
-    def __init__(self, parent, on_volume_change: Callable[[float], None] = None, **kwargs):
+    def __init__(self, parent, on_volume_change: Callable[[float], None] = None,
+                 on_progress: Callable[[float], None] = None, **kwargs):
         super().__init__(parent, height=100, fg_color=COLORS['bg_darkest'], corner_radius=0, **kwargs)
         self.pack_propagate(False)
         self.grid_propagate(False)
 
         # Callbacks
         self.on_volume_change = on_volume_change
+        self.on_progress = on_progress  # Called with progress 0.0-1.0
 
         # Playback state
         self.current_sample: Optional[Dict] = None
@@ -32,6 +34,7 @@ class FooterPlayer(ctk.CTkFrame):
         self._last_get_pos: int = 0  # Track last get_pos value to detect resets
         self._seek_target: float = 0  # Target position after seek
         self._seek_time: float = 0  # Time when last seek occurred
+        self._get_pos_at_seek: int = 0  # get_pos() value when seek occurred
 
         # UI update timer
         self._update_job = None
@@ -216,6 +219,13 @@ class FooterPlayer(ctk.CTkFrame):
 
     def load_track(self, sample: Dict, playlist: List[Dict] = None, index: int = 0):
         """Load a track for playback."""
+        # Stop current playback when loading a new track
+        if self.is_playing or self.is_paused:
+            pygame.mixer.music.stop()
+            self.is_playing = False
+            self.is_paused = False
+            self._stop_ui_update()
+
         self.current_sample = sample
         if playlist:
             self.playlist = playlist
@@ -238,13 +248,15 @@ class FooterPlayer(ctk.CTkFrame):
         if sample.get('artist'):
             info_parts.append(sample['artist'])
 
-        # BPM
-        if sample.get('bpm'):
-            info_parts.append(f"{sample['bpm']} BPM")
+        # BPM (prefer embedded, fallback to detected)
+        bpm = sample.get('bpm') or sample.get('detected_bpm')
+        if bpm:
+            info_parts.append(f"{bpm} BPM")
 
-        # Key
-        if sample.get('key'):
-            info_parts.append(sample['key'])
+        # Key (prefer embedded, fallback to detected)
+        key = sample.get('key') or sample.get('detected_key')
+        if key:
+            info_parts.append(key)
 
         # Duration
         if self.duration > 0:
@@ -305,6 +317,7 @@ class FooterPlayer(ctk.CTkFrame):
                 pygame.mixer.music.set_volume(self.volume)
                 pygame.mixer.music.play()
                 self.position_offset = 0
+                self._get_pos_at_seek = 0  # Reset seek reference point
 
             self.is_playing = True
             self.is_paused = False
@@ -384,6 +397,18 @@ class FooterPlayer(ctk.CTkFrame):
         target_pos = (value / 100) * self.duration
         self.time_current.configure(text=self._format_time(target_pos))
 
+    def seek(self, percentage: float):
+        """
+        Public method to seek to a position.
+
+        Args:
+            percentage: Position as 0.0-1.0 (or 0-100 for compatibility)
+        """
+        # Normalize to 0-100 range for internal use
+        if percentage <= 1.0:
+            percentage = percentage * 100
+        self._perform_seek(percentage)
+
     def _perform_seek(self, value):
         """Perform the actual seek operation."""
         if not self.current_sample or self.duration <= 0:
@@ -396,6 +421,8 @@ class FooterPlayer(ctk.CTkFrame):
         # Record seek time and target for UI update handling
         self._seek_time = time.time()
         self._seek_target = target_pos
+        # Record current get_pos before seeking (to calculate delta later)
+        self._get_pos_at_seek = pygame.mixer.music.get_pos()
 
         try:
             # For MP3/OGG, use set_pos which works better
@@ -403,13 +430,12 @@ class FooterPlayer(ctk.CTkFrame):
                 if self.is_playing or self.is_paused:
                     pygame.mixer.music.set_pos(target_pos)
                     self.position_offset = target_pos
-                    self._last_get_pos = 0  # Reset position tracking
                 else:
                     # Not playing, start from position
                     pygame.mixer.music.play(start=target_pos)
                     pygame.mixer.music.set_volume(self.volume)
                     self.position_offset = target_pos
-                    self._last_get_pos = 0
+                    self._get_pos_at_seek = 0  # Reset since we called play()
                     self.is_playing = True
                     self.play_btn.configure(text="\u23f8")
                     self._start_ui_update()
@@ -418,7 +444,7 @@ class FooterPlayer(ctk.CTkFrame):
                 pygame.mixer.music.play(start=target_pos)
                 pygame.mixer.music.set_volume(self.volume)
                 self.position_offset = target_pos
-                self._last_get_pos = 0
+                self._get_pos_at_seek = 0  # Reset since we called play()
                 if not self.is_playing and not self.is_paused:
                     self.is_playing = True
                     self.play_btn.configure(text="\u23f8")
@@ -468,19 +494,19 @@ class FooterPlayer(ctk.CTkFrame):
                 progress = min(100, (current_pos / self.duration) * 100)
                 self.seek_slider.set(progress)
                 self.time_current.configure(text=self._format_time(current_pos))
+                # Notify progress callback
+                if self.on_progress:
+                    self.on_progress(progress / 100)  # 0.0-1.0
                 self._update_job = self.after(100, self._update_ui)
                 return
 
             # Get position from pygame (milliseconds since play started)
             pos_ms = pygame.mixer.music.get_pos()
             if pos_ms >= 0:
-                # Detect if get_pos reset (happens after set_pos on some formats)
-                if pos_ms < self._last_get_pos - 500:  # Allow 500ms tolerance
-                    # Position reset detected, adjust offset
-                    pass  # position_offset already set during seek
-                self._last_get_pos = pos_ms
-
-                current_pos = self.position_offset + (pos_ms / 1000)
+                # Calculate position using delta from seek point
+                # This handles the fact that get_pos() doesn't reset after set_pos()
+                delta_ms = pos_ms - self._get_pos_at_seek
+                current_pos = self.position_offset + (delta_ms / 1000)
 
                 # Clamp to duration
                 current_pos = min(current_pos, self.duration)
@@ -494,6 +520,10 @@ class FooterPlayer(ctk.CTkFrame):
                 progress = min(100, (current_pos / self.duration) * 100)
                 self.seek_slider.set(progress)
                 self.time_current.configure(text=self._format_time(current_pos))
+
+                # Notify progress callback
+                if self.on_progress:
+                    self.on_progress(progress / 100)  # 0.0-1.0
 
         # Schedule next update
         self._update_job = self.after(100, self._update_ui)
