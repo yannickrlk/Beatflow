@@ -34,8 +34,8 @@ class FolderNode(ctk.CTkFrame):
         folder_name = os.path.basename(self.folder_path)
         indent = SPACING['md'] * self.level  # 16px per level
 
-        # Check if has subfolders
-        has_subfolders = len(LibraryScanner.get_subfolders(self.folder_path)) > 0
+        # Quick check for subfolders (just check if any exist, don't enumerate all)
+        has_subfolders = self._has_subfolders_fast()
 
         # Row container - 8px grid
         row = ctk.CTkFrame(self, fg_color="transparent", height=32)
@@ -71,7 +71,7 @@ class FolderNode(ctk.CTkFrame):
         self.folder_btn = ctk.CTkButton(
             row,
             text=f" {folder_name}",
-            font=ctk.CTkFont(family="Inter", size=12),
+            font=ctk.CTkFont(family="Inter", size=13),
             fg_color="transparent",
             hover_color=COLORS['bg_hover'],
             anchor="w",
@@ -82,13 +82,13 @@ class FolderNode(ctk.CTkFrame):
         )
         self.folder_btn.pack(side="left", fill="x", expand=True)
 
-        # Sample count (only for this folder, not recursive)
-        count = LibraryScanner.count_samples_shallow(self.folder_path)
+        # Sample count from database cache (fast) or skip if not cached
+        count = self._get_cached_count()
         if count > 0:
             count_label = ctk.CTkLabel(
                 row,
                 text=str(count),
-                font=ctk.CTkFont(family="Consolas", size=10),
+                font=ctk.CTkFont(family="JetBrains Mono", size=10),
                 fg_color=COLORS['bg_hover'],
                 corner_radius=3,
                 text_color=COLORS['fg_dim'],
@@ -96,6 +96,25 @@ class FolderNode(ctk.CTkFrame):
                 height=18
             )
             count_label.pack(side="right", padx=(0, SPACING['sm']))
+
+    def _has_subfolders_fast(self) -> bool:
+        """Quick check if folder has subfolders (stops at first found)."""
+        try:
+            with os.scandir(self.folder_path) as entries:
+                for entry in entries:
+                    if entry.is_dir() and not entry.name.startswith('.'):
+                        return True
+            return False
+        except (PermissionError, OSError):
+            return False
+
+    def _get_cached_count(self) -> int:
+        """Get sample count from database cache (fast, no disk I/O)."""
+        try:
+            db = get_database()
+            return db.get_folder_sample_count(self.folder_path)
+        except Exception:
+            return 0
 
     def _on_click(self):
         """Handle folder click."""
@@ -230,8 +249,8 @@ class LibraryTreeView(ctk.CTkFrame):
         title = ctk.CTkLabel(
             header,
             text="LIBRARY INDEX",
-            font=ctk.CTkFont(size=10, weight="bold"),
-            text_color=COLORS['fg_dim']
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=COLORS['fg_secondary']
         )
         title.pack(side="left")
 
@@ -467,8 +486,8 @@ class LibraryTreeView(ctk.CTkFrame):
         collections_label = ctk.CTkLabel(
             header_row,
             text="COLLECTIONS",
-            font=ctk.CTkFont(size=10, weight="bold"),
-            text_color=COLORS['fg_dim']
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=COLORS['fg_secondary']
         )
         collections_label.pack(side="left")
 

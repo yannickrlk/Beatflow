@@ -8,29 +8,22 @@
 ## Status: IN PROGRESS
 
 ## Objective
-Implement system-wide hotkeys (Play/Pause, Previous, Next) so users can control Beatflow even when it's not the active window.
+Implement system-wide global hotkeys for controlling playback (Play/Pause, Skip) even when the application is not in focus.
 
 ## Technical Requirements
-
-### 1. Global Hotkey Implementation
-- [ ] **Library Selection**: Research `pynput` or `keyboard` library for cross-platform (or Windows-specific `ctypes`) hotkey support.
-- [ ] **Key Mapping**:
-    - `Media Play/Pause` or `Ctrl+Alt+Space` -> Play/Pause
-    - `Media Previous` or `Ctrl+Alt+Left` -> Previous Track
-    - `Media Next` or `Ctrl+Alt+Right` -> Next Track
-- [ ] **Integration**: Connect hotkey listeners to `BeatflowApp` playback methods.
-- [ ] **Cleanup**: Ensure listeners are properly stopped when the application closes.
-
-## Completed Tasks (Phase 13 Core)
-- [x] **Waveform Click-to-Seek**: Click anywhere on waveform to jump to position.
-- [x] **SoundCloud-style Progress**: Visual feedback with dual-waveform compositing.
-- [x] **Progress Needle**: (Implemented via composite image).
+- [ ] **Global Hotkeys**: Use `pynput` or `keyboard` library to listen for media keys.
+- [ ] **Shortcut Mapping**:
+    - `Media Play/Pause`: Toggle play/pause
+    - `Media Next`: Next track
+    - `Media Prev`: Previous track
+- [ ] **Integration**: Connect global listeners to `FooterPlayer` methods.
+- [ ] **Windows Support**: Ensure it works reliably on Windows 10/11.
 
 ## Files to Modify
-- `ui/app.py` (Add listener setup/cleanup)
-- `requirements.txt` (Add new dependency if needed)
+- `core/shortcuts.py` (NEW) - Global listener logic
+- `main.py` - Initialize shortcut listener
+- `requirements.txt` - Add shortcut library dependency
 
-## Verification
-- Minimize Beatflow.
-- Press Global Hotkey -> Track pauses/plays.
-- Press Next Hotkey -> App switches to next track (verify via audio).
+## Notes
+- Be careful with background thread safety when calling UI methods from the shortcut thread.
+- Ensure shortcuts are cleaned up properly on app exit.
