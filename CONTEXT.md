@@ -301,9 +301,11 @@ sample_list.clear_samples()                # Clear the sample list
 
 ## 6. Not Yet Implemented
 
+### Phase 13.5 (Global Shortcuts)
+- [ ] System-wide Play/Pause/Skip hotkeys
+
 ### Lower Priority
 - [ ] AI-powered sample recommendations
-- [ ] Global hotkeys (system-wide)
 
 ---
 
