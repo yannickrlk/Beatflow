@@ -36,17 +36,17 @@ COLORS = {
 # Use Consolas/JetBrains Mono for monospaced data (BPM, Key)
 FONTS = {
     'primary': 'Inter',            # Primary font (fallback: Segoe UI)
-    'mono': 'Consolas',            # Monospaced for BPM/Key data
+    'mono': 'JetBrains Mono',      # Modern monospaced for BPM/Key data
 
     'logo': ('Inter', 18, 'bold'),
     'nav': ('Inter', 13),
     'nav_active': ('Inter', 13, 'bold'),
-    'header': ('Inter', 11, 'bold'),
+    'header': ('Inter', 12, 'bold'),  # Increased from 11 for better legibility
     'body': ('Inter', 13),
     'body_bold': ('Inter', 14, 'bold'),
     'small': ('Inter', 11),
     'tiny': ('Inter', 10),
-    'mono_data': ('Consolas', 12),  # For BPM/Key values
+    'mono_data': ('JetBrains Mono', 12),  # Modern monospaced for BPM/Key values
 }
 
 # Spacing constants (8px grid rule)
