@@ -1,5 +1,5 @@
 # Beatflow Project Context
-> Last updated: 2026-01-08 (Phase 18 - Kit Builder ZIP Export - Complete)
+> Last updated: 2026-01-08 (Client Manager Phase 3 Complete - Full Interactive UI)
 > For collaboration between Claude (implementation) and Gemini (brainstorming)
 
 ---
@@ -50,7 +50,8 @@ Beatflow/
 │   ├── shortcuts.py        # Global keyboard shortcuts listener
 │   ├── lab.py              # LabManager - non-destructive audio processing
 │   ├── sync.py             # SyncManager - time-stretch/pitch-shift for tempo sync
-│   └── exporter.py         # Exporter - ZIP bundling & kit generation
+│   ├── exporter.py         # Exporter - ZIP bundling & kit generation
+│   └── client_manager.py   # ClientManager - CRM CRUD operations
 │
 └── ui/
     ├── __init__.py
@@ -61,7 +62,10 @@ Beatflow/
     ├── dialogs.py          # MetadataEditDialog + ExportDialog logic
     ├── tree_view.py        # LibraryTreeView - folder tree, collections UI
     ├── library.py          # SampleList + SampleRow - sample display
-    └── lab_drawer.py       # LabDrawer - interactive waveform editor UI
+    ├── lab_drawer.py       # LabDrawer - interactive waveform editor UI
+    ├── clients_view.py     # ClientsView - CRM interface for managing clients
+    ├── client_card.py      # ClientCard & ClientListRow - client display components
+    └── client_dialogs.py   # AddClientDialog & EditClientDialog - client forms
 ```
 
 ---
@@ -369,6 +373,9 @@ sample_list.clear_samples()                # Clear the sample list
 ✅ **Safe Delete**: Remove duplicates to trash or just remove from library
 ✅ **Kit Builder ZIP Export**: Export collections to ZIP files
 ✅ **Collection Context Menu**: Right-click collections for export/delete options
+✅ **Client Manager**: CRM feature for tracking clients and contacts
+✅ **Multi-View Navigation**: Sidebar navigation between Browse and Clients views
+✅ **State Preservation**: Switching views preserves search/scroll state
 
 ---
 
@@ -474,4 +481,48 @@ py -3.12 main.py "C:\Path\To\Samples"
 
 ---
 
-*Last implementation: Phase 18 (Kit Builder - ZIP Export) - Complete*
+*Last implementation: Client Manager Phase 3 (Interactive UI) - Complete*
+
+---
+
+## Client Manager Components
+
+### ClientCard (`ui/client_card.py`)
+```python
+class ClientCard(ctk.CTkFrame):
+    """Premium glass card for client display."""
+    # Shows: name, email, phone, social buttons, edit button
+    # Hover: accent border color change
+
+class ClientListRow(ctk.CTkFrame):
+    """Compact table row for list view."""
+    # Same data in horizontal layout
+```
+
+### Client Dialogs (`ui/client_dialogs.py`)
+```python
+class AddClientDialog(ctk.CTkToplevel):
+    """Modal for adding clients (450x500)."""
+    # Scrollable form with fields: name*, email, phone, instagram, twitter, website, notes
+    # Buttons outside scroll area (always visible)
+
+class EditClientDialog(ctk.CTkToplevel):
+    """Modal for editing clients (450x520)."""
+    # Pre-populated fields + Delete button
+```
+
+### Social Icon Unicode
+| Platform  | Char | Unicode   | Hover Color |
+|-----------|------|-----------|-------------|
+| Instagram | ◎    | `\u25CE`  | #E1306C     |
+| Twitter/X | ╳    | `\u2573`  | #000000     |
+| Website   | ↗    | `\u2197`  | accent      |
+| Edit      | ✎    | `\u270E`  | bg_hover    |
+
+---
+
+**UI Pattern**: All views (Browse, Clients) share consistent topbar design:
+- Height: 56px, Background: `COLORS['bg_dark']`
+- Search input on LEFT (280x40px, corner_radius=8)
+- Context toggle next to search (width=160, height=32, `dynamic_resizing=False`)
+- Primary action button on RIGHT ("+ Add Folder" or "+ Add Client")

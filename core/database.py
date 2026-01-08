@@ -188,6 +188,27 @@ class DatabaseManager:
             )
         ''')
 
+        # Create clients table for Client Manager
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS clients (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email TEXT,
+                phone TEXT,
+                instagram TEXT,
+                twitter TEXT,
+                website TEXT,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Create index for client name searches
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_clients_name
+            ON clients(name)
+        ''')
+
         conn.commit()
 
     def get_sample(self, path: str) -> Optional[Dict]:

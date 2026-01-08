@@ -20,6 +20,7 @@ from ui.tree_view import LibraryTreeView
 from ui.library import SampleList
 from ui.player import FooterPlayer
 from ui.dialogs import MetadataEditDialog, NewCollectionDialog, AddToCollectionDialog, SettingsDialog, MetadataArchitectDialog
+from ui.clients_view import ClientsView
 from core.config import ConfigManager
 from core.scanner import LibraryScanner
 from core.database import get_database
@@ -137,12 +138,16 @@ class BeatflowApp(BeatflowAppBase):
 
     def _build_ui(self):
         """Build the main UI layout."""
-        # Top bar (spans columns 1-2)
-        self._build_topbar()
+        # Track current view
+        self.current_view = "browse"
 
         # Sidebar (column 0, spans all rows)
         self.sidebar = Sidebar(self, on_nav_change=self._on_nav_change)
         self.sidebar.grid(row=0, column=0, rowspan=3, sticky="nsew")
+
+        # ==================== Browse View Components ====================
+        # Top bar (spans columns 1-2)
+        self._build_topbar()
 
         # Library Index (column 1)
         self.tree_view = LibraryTreeView(
@@ -182,11 +187,16 @@ class BeatflowApp(BeatflowAppBase):
         # Set initial volume from config
         self.player.set_volume(self.config_manager.volume)
 
+        # ==================== Clients View ====================
+        self.clients_view = ClientsView(self)
+        # Initially hidden - don't grid it yet
+
     def _build_topbar(self):
         """Build the top bar with search and actions."""
-        topbar = ctk.CTkFrame(self, height=56, fg_color=COLORS['bg_dark'], corner_radius=0)
-        topbar.grid(row=0, column=1, columnspan=2, sticky="ew")
-        topbar.grid_propagate(False)
+        self.topbar = ctk.CTkFrame(self, height=56, fg_color=COLORS['bg_dark'], corner_radius=0)
+        self.topbar.grid(row=0, column=1, columnspan=2, sticky="ew")
+        self.topbar.grid_propagate(False)
+        topbar = self.topbar  # Local reference for convenience
 
         # Search bar (left side) - 8px grid
         search_frame = ctk.CTkFrame(topbar, fg_color="transparent")
@@ -208,7 +218,7 @@ class BeatflowApp(BeatflowAppBase):
         )
         search_entry.pack(side="left", pady=SPACING['sm'])
 
-        # Search mode toggle (Folder / Library)
+        # Search mode toggle (Folder / Library) - width=120 matches Card/List toggle in Clients view
         self.search_mode_var = ctk.StringVar(value="folder")
         self.search_mode_toggle = ctk.CTkSegmentedButton(
             search_frame,
@@ -220,8 +230,10 @@ class BeatflowApp(BeatflowAppBase):
             selected_hover_color=COLORS['accent_hover'],
             unselected_color=COLORS['bg_hover'],
             unselected_hover_color=COLORS['bg_card'],
+            width=160,
             height=32,
             corner_radius=4,
+            dynamic_resizing=False,
             command=self._on_search_mode_change
         )
         self.search_mode_toggle.set("Folder")
@@ -368,11 +380,40 @@ class BeatflowApp(BeatflowAppBase):
             self.sample_list.filter_samples(self.search_var.get(), global_search=is_global)
 
     def _on_nav_change(self, nav_id):
-        """Handle navigation change."""
+        """Handle navigation change between Browse and Clients views."""
+        if nav_id == self.current_view:
+            return
+
         if nav_id == "browse":
-            # Clear sample list and let user select a folder from tree
-            self.sample_list.clear_samples()
-            self.sample_list.breadcrumb.configure(text="\U0001f4c1 Library")
+            # Show Browse view components
+            self._show_browse_view()
+        elif nav_id == "clients":
+            # Show Clients view
+            self._show_clients_view()
+
+        self.current_view = nav_id
+
+    def _show_browse_view(self):
+        """Show the sample browser view."""
+        # Hide clients view
+        self.clients_view.grid_remove()
+
+        # Show browse components
+        self.topbar.grid(row=0, column=1, columnspan=2, sticky="ew")
+        self.tree_view.grid(row=1, column=1, sticky="nsew")
+        self.sample_list.grid(row=1, column=2, sticky="nsew")
+        self.player.grid(row=2, column=1, columnspan=2, sticky="ew")
+
+    def _show_clients_view(self):
+        """Show the clients manager view."""
+        # Hide browse components
+        self.topbar.grid_remove()
+        self.tree_view.grid_remove()
+        self.sample_list.grid_remove()
+        self.player.grid_remove()
+
+        # Show clients view (spans columns 1-2, rows 0-2)
+        self.clients_view.grid(row=0, column=1, columnspan=2, rowspan=3, sticky="nsew")
 
     def _on_favorites_select(self):
         """Handle favorites selection from tree view."""

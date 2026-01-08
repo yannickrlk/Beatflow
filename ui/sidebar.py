@@ -36,6 +36,7 @@ class Sidebar(ctk.CTkFrame):
 
         nav_items = [
             ("browse", "Browse", True),  # Active by default
+            ("clients", "Clients", False),
         ]
 
         for nav_id, label, is_active in nav_items:
@@ -65,6 +66,7 @@ class Sidebar(ctk.CTkFrame):
         # Icon mapping
         icons = {
             "browse": "\U0001f4c1",  # Folder icon
+            "clients": "\U0001f464",  # Person icon
         }
 
         icon = icons.get(nav_id, "")
