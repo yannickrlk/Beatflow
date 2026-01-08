@@ -254,6 +254,131 @@ All UX improvements have been implemented.
 - [x] Progress callback from `FooterPlayer.on_progress`
 - [x] Played portion shows in accent color, unplayed in gray
 
-### Lower Priority (Deferred)
-- [ ] **Global Hotkeys**: System-wide Play/Pause/Skip (Windows API)
+### 3. MP3 Waveform Fix (2026-01-07)
+- [x] Added `imageio-ffmpeg` dependency (bundles ffmpeg binary)
+- [x] Updated `core/waveform.py` to configure pydub with bundled ffmpeg
+- [x] MP3/FLAC/OGG waveforms work out of the box (no system ffmpeg needed)
 
+---
+
+## ✅ Completed: Phase 13.5 - Global Shortcuts
+**Goal**: System-wide hotkeys for playback control.
+
+### Implementation (2026-01-07)
+- [x] Created `core/shortcuts.py` with `GlobalShortcutListener` class
+- [x] Default shortcuts: Ctrl+Space (Play/Pause), Ctrl+Left (Prev), Ctrl+Right (Next)
+- [x] Used `pynput` library for global keyboard hook
+- [x] Thread-safe UI updates via `app.after()`
+- [x] Shortcuts configurable in Settings dialog
+- [x] Shortcuts persist to `beatflow_config.json`
+- [x] "Reset" button to restore defaults
+- [x] Updated `main.py` for lifecycle management
+
+---
+
+## ✅ Completed: Phase 14 - Sonic DNA Matcher (DSP Similarity)
+**Goal**: Instant sonic matching using traditional Digital Signal Processing.
+
+### Implementation (2026-01-07)
+- [x] Created `core/fingerprint.py` with Shazam-style landmark hashing
+- [x] FFT spectrogram via `librosa.stft` + `librosa.amplitude_to_db`
+- [x] Peak detection via `scipy.ndimage.maximum_filter`
+- [x] Anchor-target pairing with fan-out for robustness
+- [x] Time-aligned matching algorithm for accuracy
+- [x] Added `fingerprints` table to SQLite database (indexed)
+- [x] `db.save_fingerprints()`, `db.find_similar_samples()` methods
+- [x] ∞ (Match) button added to each SampleRow
+- [x] "Find Similar" option in right-click context menu
+- [x] Matching view with "Clear Match" button
+- [x] Background thread for fingerprint generation (no UI freeze)
+- [x] Fingerprints cached in database for fast subsequent matches
+
+---
+
+## ✅ Completed: Phase 14.5 - Recursive Folder Counts
+**Goal**: Show total sample count (including subfolders) next to each folder in the tree view.
+
+### Implementation (2026-01-07)
+- [x] Added `db.get_folder_sample_count(path, recursive=True)` to `core/database.py`
+- [x] Uses SQL `LIKE` pattern matching with OS-native path separator
+- [x] Counts samples from database cache (fast, no disk I/O)
+- [x] Fixed tree view layout: count label packed before folder button
+- [x] Count badge now properly visible even for long folder names
+
+---
+
+## ✅ Completed: Phase 15 - The "Beatflow Lab" (Sample Editor)
+**Goal**: Basic non-destructive editing for quick preparation.
+
+### Implementation (2026-01-07)
+- [x] Created `core/lab.py` with `LabManager` class
+  - Uses `librosa` + `soundfile` for audio processing (not pydub)
+  - `apply_edits()` - trim, fade in/out, normalize
+  - `export_temp()` - exports to timestamped temp WAV files
+  - ffmpeg PATH configured via `imageio_ffmpeg` in `main.py`
+- [x] Created `ui/lab_drawer.py` with interactive waveform
+  - Draggable trim handles (green=start, red=end)
+  - Fade in/out sliders (0-2000ms range)
+  - Normalize toggle (-0.1dB peak normalization)
+  - Preview button with play/pause toggle
+  - Export button with file save dialog
+  - Reset button to restore defaults
+- [x] Added `lab_settings` table to `core/database.py`
+- [x] Modified `ui/library.py` to add 🧪 Lab button
+
+---
+
+## ✅ Completed: Phase 16 - Universal Sync Engine (DSP)
+**Goal**: Audition samples in context of the project's tempo and key.
+
+### Implementation (2026-01-07)
+- [x] Created `core/sync.py` with `SyncManager` class
+- [x] Time-stretching via `librosa.effects.time_stretch` (phase vocoder)
+- [x] Pitch-shifting via `librosa.effects.pitch_shift`
+- [x] Temp file caching in `%TEMP%/beatflow_sync/` with 24-hour auto-cleanup
+- [x] BPM input field (40-240 range) with validation
+- [x] Tap Tempo button (calculates BPM from last 4 tap intervals)
+- [x] Metronome toggle with visual beat pulse on BPM field
+- [x] SYNC button to enable/disable tempo-synced playback
+- [x] Sync indicator (⇄) on sample rows when playing synced
+- [x] Auto-reload track when toggling sync state
+
+---
+
+## ✅ Completed: Phase 17 - The "Metadata Architect" (Rule-Based Automation)
+**Goal**: Logic-driven library enrichment without AI.
+
+### Implementation (2026-01-08)
+- [x] Created `core/metadata_architect.py` with three main classes:
+  - `RuleEngine` - Apply "If-This-Then-Tag" rules to samples
+  - `RegexRenamer` - Batch rename files with regex patterns
+  - `DuplicateFinder` - Find exact and near-exact duplicates
+- [x] Database tables: `tagging_rules`, `sample_tags`, `rename_history`
+- [x] **Smart Tagging Rules**: 6 operators, 8 preset rules
+- [x] **Regex Renamer**: Preview + apply, 6 preset patterns
+- [x] **Duplicate Finder**: MD5 checksum + duration/size matching
+- [x] UI: MetadataArchitectDialog with 3 tabs (Rules, Renamer, Duplicates)
+- [x] Tools button (lightning icon) in topbar for quick access
+
+---
+
+## ✅ Completed: Phase 18 - The "Kit Builder" (ZIP Export)
+**Goal**: Export collections as ZIP archives for sharing and backup.
+
+### Implementation (2026-01-08)
+- [x] Created `core/exporter.py` with `CollectionExporter` class
+  - `export_to_zip(collection_id, output_path)` - Export collection to ZIP
+  - `export_samples_to_zip(paths, output_path)` - Export arbitrary sample list
+  - `validate_files(samples)` - Check which files exist on disk
+- [x] Right-click context menu on collections: "Export to ZIP...", "Delete Collection"
+- [x] Windows Save As dialog with default filename from collection name
+- [x] Success/failure message boxes with file path info
+- [x] ZIP compression using `zipfile.ZIP_DEFLATED`
+
+---
+
+## 🔄 Planned: Phase 19 - DAW Kit Export
+**Goal**: Create drum kit presets for popular DAWs.
+- [ ] **Ableton Live**: Create `.adg` Drum Rack files
+- [ ] **FL Studio**: Create `.fpc` presets
+- [ ] **Logic Pro**: Create `.patch` files for Drum Machine Designer

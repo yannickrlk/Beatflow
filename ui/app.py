@@ -2,7 +2,7 @@
 
 import os
 import customtkinter as ctk
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 
 # Optional drag & drop support
 try:
@@ -19,7 +19,7 @@ from ui.sidebar import Sidebar
 from ui.tree_view import LibraryTreeView
 from ui.library import SampleList
 from ui.player import FooterPlayer
-from ui.dialogs import MetadataEditDialog, NewCollectionDialog, AddToCollectionDialog, SettingsDialog
+from ui.dialogs import MetadataEditDialog, NewCollectionDialog, AddToCollectionDialog, SettingsDialog, MetadataArchitectDialog
 from core.config import ConfigManager
 from core.scanner import LibraryScanner
 from core.database import get_database
@@ -153,7 +153,8 @@ class BeatflowApp(BeatflowAppBase):
             on_recent=self._on_recent_select,
             on_collection=self._on_collection_select,
             on_create_collection=self._on_create_collection,
-            on_remove_folder=self._remove_folder
+            on_remove_folder=self._remove_folder,
+            on_export_collection=self._on_export_collection
         )
         self.tree_view.grid(row=1, column=1, sticky="nsew")
 
@@ -241,6 +242,21 @@ class BeatflowApp(BeatflowAppBase):
         )
         settings_btn.pack(side="right", padx=(0, SPACING['lg']), pady=SPACING['sm'])
 
+        # Tools button (Metadata Architect)
+        tools_btn = ctk.CTkButton(
+            topbar,
+            text="\u26A1",  # Lightning bolt icon for tools
+            font=ctk.CTkFont(size=16),
+            fg_color="transparent",
+            hover_color=COLORS['bg_hover'],
+            height=40,
+            width=40,
+            corner_radius=4,
+            text_color=COLORS['accent_secondary'],
+            command=self._open_metadata_architect
+        )
+        tools_btn.pack(side="right", pady=SPACING['sm'])
+
         # Add folder button (right side) - 8px grid
         add_btn = ctk.CTkButton(
             topbar,
@@ -314,6 +330,13 @@ class BeatflowApp(BeatflowAppBase):
             # Load and play new track
             self.player.load_track(sample, playlist, index)
             self.player.play()
+
+            # Update sample list to show which sample is playing (with sync indicator)
+            if sample:
+                self.sample_list.set_playing_sample(
+                    sample['path'],
+                    sync_active=self.player.is_sync_active()
+                )
 
             # Track in recently played
             if sample:
@@ -399,6 +422,50 @@ class BeatflowApp(BeatflowAppBase):
             on_create_new=on_create_new
         )
 
+    def _on_export_collection(self, collection_id: int, collection_name: str):
+        """Handle export collection to ZIP request."""
+        from core.exporter import get_exporter
+
+        # Clean up collection name for filename
+        safe_name = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in collection_name)
+        default_filename = f"{safe_name}.zip"
+
+        # Get user's Desktop or Documents as initial directory
+        initial_dir = os.path.expanduser("~/Desktop")
+        if not os.path.exists(initial_dir):
+            initial_dir = os.path.expanduser("~/Documents")
+
+        # Show Save As dialog
+        output_path = filedialog.asksaveasfilename(
+            parent=self,
+            title="Export Collection to ZIP",
+            initialdir=initial_dir,
+            initialfile=default_filename,
+            defaultextension=".zip",
+            filetypes=[("ZIP files", "*.zip"), ("All files", "*.*")]
+        )
+
+        if not output_path:
+            return  # User cancelled
+
+        # Perform export
+        exporter = get_exporter()
+        success, message, count = exporter.export_to_zip(collection_id, output_path)
+
+        # Show result
+        if success:
+            messagebox.showinfo(
+                "Export Complete",
+                f"{message}\n\nSaved to:\n{output_path}",
+                parent=self
+            )
+        else:
+            messagebox.showerror(
+                "Export Failed",
+                message,
+                parent=self
+            )
+
     def _on_edit_request(self, sample, row):
         """Handle metadata edit request from sample list."""
         def on_save(new_metadata):
@@ -476,6 +543,15 @@ class BeatflowApp(BeatflowAppBase):
     def _open_settings(self):
         """Open the settings dialog."""
         SettingsDialog(self, self.config_manager)
+
+    def _open_metadata_architect(self):
+        """Open the Metadata Architect dialog."""
+        def on_refresh():
+            # Refresh sample list if a folder is loaded
+            if hasattr(self.sample_list, 'current_path') and self.sample_list.current_path:
+                self.sample_list.load_folder(self.sample_list.current_path)
+
+        MetadataArchitectDialog(self, sample_list=self.sample_list, on_refresh=on_refresh)
 
     def _on_recent_select(self):
         """Handle recent samples selection from sidebar."""

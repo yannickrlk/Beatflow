@@ -6,6 +6,7 @@ import customtkinter as ctk
 import pygame
 from typing import Optional, List, Dict, Callable
 from ui.theme import COLORS
+from core.sync import get_sync_manager
 
 
 class FooterPlayer(ctk.CTkFrame):
@@ -39,14 +40,32 @@ class FooterPlayer(ctk.CTkFrame):
         # UI update timer
         self._update_job = None
 
+        # Sync engine state
+        self.sync_manager = get_sync_manager()
+        self.sync_enabled = False
+        self.target_bpm = 120
+        self._synced_file_path: Optional[str] = None  # Path to currently playing synced file
+
+        # Tap tempo state
+        self._tap_times: List[float] = []
+        self._tap_timeout = 2.0  # Reset taps after 2 seconds
+
+        # Metronome state
+        self.metronome_enabled = False
+        self._metronome_job = None
+        self._metronome_beat = 0
+        self._metronome_sound = None
+        self._init_metronome_sound()
+
         self._build_ui()
 
     def _build_ui(self):
         """Build the player UI."""
         # Use grid layout for precise control
-        self.grid_columnconfigure(0, weight=0, minsize=220)  # Track info
+        self.grid_columnconfigure(0, weight=0, minsize=200)  # Track info
         self.grid_columnconfigure(1, weight=1)               # Center (controls + progress)
-        self.grid_columnconfigure(2, weight=0, minsize=150)  # Volume
+        self.grid_columnconfigure(2, weight=0, minsize=220)  # Sync controls
+        self.grid_columnconfigure(3, weight=0, minsize=130)  # Volume
         self.grid_rowconfigure(0, weight=1)
 
         # Left section: Track info
@@ -168,9 +187,85 @@ class FooterPlayer(ctk.CTkFrame):
         )
         self.time_total.pack(side="left")
 
+        # Sync section: BPM controls, Tap, Metronome, Sync toggle
+        sync_frame = ctk.CTkFrame(self, fg_color="transparent")
+        sync_frame.grid(row=0, column=2, sticky="ns", padx=10, pady=10)
+
+        sync_row = ctk.CTkFrame(sync_frame, fg_color="transparent")
+        sync_row.pack(expand=True)
+
+        # BPM Entry
+        bpm_label = ctk.CTkLabel(
+            sync_row,
+            text="BPM",
+            font=ctk.CTkFont(size=10),
+            text_color=COLORS['fg_dim']
+        )
+        bpm_label.pack(side="left", padx=(0, 4))
+
+        self.bpm_entry = ctk.CTkEntry(
+            sync_row,
+            width=50,
+            height=28,
+            font=ctk.CTkFont(family="JetBrains Mono", size=12),
+            fg_color=COLORS['bg_card'],
+            border_color=COLORS['border'],
+            text_color=COLORS['fg'],
+            justify="center"
+        )
+        self.bpm_entry.insert(0, str(self.target_bpm))
+        self.bpm_entry.bind("<Return>", self._on_bpm_change)
+        self.bpm_entry.bind("<FocusOut>", self._on_bpm_change)
+        self.bpm_entry.pack(side="left", padx=(0, 4))
+
+        # Tap Tempo button
+        self.tap_btn = ctk.CTkButton(
+            sync_row,
+            text="TAP",
+            width=40,
+            height=28,
+            font=ctk.CTkFont(size=10, weight="bold"),
+            fg_color=COLORS['bg_hover'],
+            hover_color=COLORS['bg_card'],
+            text_color=COLORS['fg_secondary'],
+            corner_radius=4,
+            command=self._on_tap_tempo
+        )
+        self.tap_btn.pack(side="left", padx=(0, 8))
+
+        # Metronome toggle
+        self.metronome_btn = ctk.CTkButton(
+            sync_row,
+            text="\U0001F3B5",  # Musical note
+            width=28,
+            height=28,
+            font=ctk.CTkFont(size=12),
+            fg_color=COLORS['bg_hover'],
+            hover_color=COLORS['bg_card'],
+            text_color=COLORS['fg_dim'],
+            corner_radius=4,
+            command=self._toggle_metronome
+        )
+        self.metronome_btn.pack(side="left", padx=(0, 8))
+
+        # Sync toggle button
+        self.sync_btn = ctk.CTkButton(
+            sync_row,
+            text="SYNC",
+            width=50,
+            height=28,
+            font=ctk.CTkFont(size=10, weight="bold"),
+            fg_color=COLORS['bg_hover'],
+            hover_color=COLORS['accent_dim'],
+            text_color=COLORS['fg_dim'],
+            corner_radius=4,
+            command=self._toggle_sync
+        )
+        self.sync_btn.pack(side="left")
+
         # Right section: Volume
         volume_frame = ctk.CTkFrame(self, fg_color="transparent")
-        volume_frame.grid(row=0, column=2, sticky="nse", padx=(10, 20), pady=10)
+        volume_frame.grid(row=0, column=3, sticky="nse", padx=(10, 20), pady=10)
 
         volume_row = ctk.CTkFrame(volume_frame, fg_color="transparent")
         volume_row.pack(expand=True, pady=15)
@@ -313,7 +408,9 @@ class FooterPlayer(ctk.CTkFrame):
             if self.is_paused:
                 pygame.mixer.music.unpause()
             else:
-                pygame.mixer.music.load(self.current_sample['path'])
+                # Get file path - use synced version if sync is enabled
+                file_path = self._get_synced_file(self.current_sample)
+                pygame.mixer.music.load(file_path)
                 pygame.mixer.music.set_volume(self.volume)
                 pygame.mixer.music.play()
                 self.position_offset = 0
@@ -544,3 +641,259 @@ class FooterPlayer(ctk.CTkFrame):
         mins = int(seconds // 60)
         secs = int(seconds % 60)
         return f"{mins}:{secs:02d}"
+
+    # ========== Sync Engine Methods ==========
+
+    def _init_metronome_sound(self):
+        """Initialize metronome click sound."""
+        try:
+            import numpy as np
+            import io
+            import wave
+
+            # Generate a short click sound (10ms sine wave at 1000Hz)
+            sample_rate = 44100
+            duration = 0.01  # 10ms
+            frequency = 1000
+            t = np.linspace(0, duration, int(sample_rate * duration), False)
+            click = np.sin(2 * np.pi * frequency * t)
+
+            # Apply envelope for clean click
+            envelope = np.exp(-t * 50)
+            click = (click * envelope * 0.5 * 32767).astype(np.int16)
+
+            # Create WAV in memory
+            buffer = io.BytesIO()
+            with wave.open(buffer, 'wb') as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(sample_rate)
+                wav.writeframes(click.tobytes())
+
+            buffer.seek(0)
+            self._metronome_sound = pygame.mixer.Sound(buffer)
+            self._metronome_sound.set_volume(0.5)
+        except Exception as e:
+            print(f"Failed to init metronome sound: {e}")
+            self._metronome_sound = None
+
+    def _on_bpm_change(self, event=None):
+        """Handle BPM entry change."""
+        try:
+            value = int(self.bpm_entry.get())
+            # Clamp to reasonable range
+            value = max(40, min(240, value))
+            self.target_bpm = value
+            self.bpm_entry.delete(0, "end")
+            self.bpm_entry.insert(0, str(value))
+
+            # If sync is enabled and a track is playing, reload with new tempo
+            if self.sync_enabled and self.is_playing and self.current_sample:
+                # Stop current and restart with new sync
+                was_playing = self.is_playing
+                self.stop()
+                if was_playing:
+                    self.play()
+        except ValueError:
+            # Reset to current value
+            self.bpm_entry.delete(0, "end")
+            self.bpm_entry.insert(0, str(self.target_bpm))
+
+    def _on_tap_tempo(self):
+        """Handle tap tempo button click."""
+        current_time = time.time()
+
+        # Reset if too much time has passed since last tap
+        if self._tap_times and (current_time - self._tap_times[-1]) > self._tap_timeout:
+            self._tap_times = []
+
+        self._tap_times.append(current_time)
+
+        # Need at least 2 taps to calculate BPM
+        if len(self._tap_times) >= 2:
+            # Calculate average interval between taps
+            intervals = [
+                self._tap_times[i] - self._tap_times[i - 1]
+                for i in range(1, len(self._tap_times))
+            ]
+            avg_interval = sum(intervals) / len(intervals)
+
+            # Convert to BPM
+            if avg_interval > 0:
+                bpm = int(60 / avg_interval)
+                bpm = max(40, min(240, bpm))
+                self.target_bpm = bpm
+                self.bpm_entry.delete(0, "end")
+                self.bpm_entry.insert(0, str(bpm))
+
+        # Keep only last 8 taps
+        if len(self._tap_times) > 8:
+            self._tap_times = self._tap_times[-8:]
+
+        # Visual feedback
+        self.tap_btn.configure(fg_color=COLORS['accent'])
+        self.after(100, lambda: self.tap_btn.configure(fg_color=COLORS['bg_hover']))
+
+    def _toggle_metronome(self):
+        """Toggle metronome on/off."""
+        self.metronome_enabled = not self.metronome_enabled
+
+        if self.metronome_enabled:
+            self.metronome_btn.configure(
+                fg_color=COLORS['accent'],
+                text_color="#FFFFFF"
+            )
+            self._start_metronome()
+        else:
+            self.metronome_btn.configure(
+                fg_color=COLORS['bg_hover'],
+                text_color=COLORS['fg_dim']
+            )
+            self._stop_metronome()
+
+    def _start_metronome(self):
+        """Start metronome ticking."""
+        if not self.metronome_enabled:
+            return
+
+        # Play tick
+        if self._metronome_sound:
+            self._metronome_sound.play()
+
+        # Pulse the BPM entry background
+        self._metronome_beat = (self._metronome_beat + 1) % 4
+        if self._metronome_beat == 0:
+            # Downbeat - stronger pulse
+            self.bpm_entry.configure(border_color=COLORS['accent'])
+        else:
+            self.bpm_entry.configure(border_color=COLORS['fg_dim'])
+
+        # Reset border after short delay
+        self.after(50, lambda: self.bpm_entry.configure(border_color=COLORS['border']))
+
+        # Calculate interval from BPM
+        interval_ms = int(60000 / self.target_bpm)
+
+        # Schedule next tick
+        self._metronome_job = self.after(interval_ms, self._start_metronome)
+
+    def _stop_metronome(self):
+        """Stop metronome ticking."""
+        if self._metronome_job:
+            self.after_cancel(self._metronome_job)
+            self._metronome_job = None
+        self._metronome_beat = 0
+        self.bpm_entry.configure(border_color=COLORS['border'])
+
+    def _toggle_sync(self):
+        """Toggle sync mode on/off."""
+        self.sync_enabled = not self.sync_enabled
+
+        if self.sync_enabled:
+            self.sync_btn.configure(
+                fg_color=COLORS['accent'],
+                text_color="#FFFFFF"
+            )
+        else:
+            self.sync_btn.configure(
+                fg_color=COLORS['bg_hover'],
+                text_color=COLORS['fg_dim']
+            )
+            self._synced_file_path = None
+
+        # If a track is loaded, reload it with/without sync
+        if self.current_sample:
+            was_playing = self.is_playing
+            was_paused = self.is_paused
+            current_pos = self._get_current_position()
+
+            # Reload the track with new sync setting
+            self._reload_with_sync()
+
+            # Resume from similar position if was playing
+            if was_playing or was_paused:
+                if current_pos > 0:
+                    self.seek(current_pos / self.duration * 100)
+                if was_playing:
+                    self.play()
+
+    def _reload_with_sync(self):
+        """Reload current track with or without sync."""
+        if not self.current_sample:
+            return
+
+        try:
+            # Get the appropriate file path
+            file_path = self._get_synced_file(self.current_sample)
+
+            # Stop current playback
+            pygame.mixer.music.stop()
+
+            # Load new file
+            pygame.mixer.music.load(file_path)
+            pygame.mixer.music.set_volume(self.volume)
+
+            self.is_playing = False
+            self.is_paused = False
+            self.position_offset = 0
+            self._get_pos_at_seek = 0
+        except Exception:
+            pass
+
+    def _get_current_position(self) -> float:
+        """Get current playback position in seconds."""
+        if not self.is_playing and not self.is_paused:
+            return 0
+        pos_ms = pygame.mixer.music.get_pos()
+        if pos_ms < 0:
+            return 0
+        delta_ms = pos_ms - self._get_pos_at_seek
+        return self.position_offset + (delta_ms / 1000)
+
+    def _get_sample_bpm(self, sample: Dict) -> float:
+        """Get BPM from sample metadata."""
+        # Try embedded BPM first, then detected
+        bpm_str = sample.get('bpm') or sample.get('detected_bpm') or ''
+        try:
+            # Handle "≈120" format from detected BPM
+            bpm_str = bpm_str.replace('≈', '').strip()
+            return float(bpm_str)
+        except (ValueError, AttributeError):
+            return 0
+
+    def _get_synced_file(self, sample: Dict) -> str:
+        """Get path to synced (time-stretched) file if sync is enabled."""
+        if not self.sync_enabled:
+            return sample['path']
+
+        original_bpm = self._get_sample_bpm(sample)
+        if original_bpm <= 0:
+            return sample['path']
+
+        # Check if sync manager is available
+        if not self.sync_manager.is_available():
+            return sample['path']
+
+        # Process the file
+        synced_path = self.sync_manager.process_for_sync(
+            sample['path'],
+            original_bpm,
+            self.target_bpm
+        )
+
+        if synced_path:
+            self._synced_file_path = synced_path
+            return synced_path
+        else:
+            return sample['path']
+
+    def set_target_bpm(self, bpm: int):
+        """Set the target BPM programmatically."""
+        bpm = max(40, min(240, bpm))
+        self.target_bpm = bpm
+        self.bpm_entry.delete(0, "end")
+        self.bpm_entry.insert(0, str(bpm))
+
+    def is_sync_active(self) -> bool:
+        """Check if sync mode is currently active."""
+        return self.sync_enabled

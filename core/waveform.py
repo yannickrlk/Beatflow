@@ -11,6 +11,25 @@ from functools import lru_cache
 import numpy as np
 from PIL import Image, ImageDraw
 
+# Configure ffmpeg from imageio_ffmpeg BEFORE importing audio libraries
+try:
+    import imageio_ffmpeg
+    ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+    ffmpeg_dir = os.path.dirname(ffmpeg_path)
+    # Add ffmpeg directory to PATH so audioread/librosa can find it
+    if ffmpeg_dir not in os.environ.get('PATH', ''):
+        os.environ['PATH'] = ffmpeg_dir + os.pathsep + os.environ.get('PATH', '')
+except ImportError:
+    ffmpeg_path = None
+
+# Configure pydub to use bundled ffmpeg
+try:
+    from pydub import AudioSegment
+    if ffmpeg_path:
+        AudioSegment.converter = ffmpeg_path
+except ImportError:
+    pass
+
 # Cache directory for waveform images
 CACHE_DIR = Path(__file__).parent.parent / ".waveform_cache"
 

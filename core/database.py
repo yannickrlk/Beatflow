@@ -115,6 +115,79 @@ class DatabaseManager:
             )
         ''')
 
+        # Create fingerprints table for sonic similarity matching
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS fingerprints (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sample_path TEXT NOT NULL,
+                hash_value INTEGER NOT NULL,
+                time_offset INTEGER NOT NULL,
+                FOREIGN KEY (sample_path) REFERENCES samples(path) ON DELETE CASCADE
+            )
+        ''')
+
+        # Create indexes for fast fingerprint lookups
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_fingerprints_hash
+            ON fingerprints(hash_value)
+        ''')
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_fingerprints_path
+            ON fingerprints(sample_path)
+        ''')
+
+        # Create lab_settings table for Beatflow Lab edits
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS lab_settings (
+                sample_path TEXT PRIMARY KEY,
+                settings TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (sample_path) REFERENCES samples(path) ON DELETE CASCADE
+            )
+        ''')
+
+        # Create tagging_rules table for Metadata Architect
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS tagging_rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                condition_type TEXT NOT NULL,
+                condition_field TEXT NOT NULL,
+                condition_operator TEXT NOT NULL,
+                condition_value TEXT NOT NULL,
+                tags_to_add TEXT NOT NULL,
+                is_enabled INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Create sample_tags table for custom tags
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS sample_tags (
+                sample_path TEXT NOT NULL,
+                tag TEXT NOT NULL,
+                source TEXT DEFAULT 'manual',
+                PRIMARY KEY (sample_path, tag),
+                FOREIGN KEY (sample_path) REFERENCES samples(path) ON DELETE CASCADE
+            )
+        ''')
+
+        # Create index for tag queries
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_sample_tags_tag
+            ON sample_tags(tag)
+        ''')
+
+        # Create rename_history table for undo support
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS rename_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                original_path TEXT NOT NULL,
+                new_path TEXT NOT NULL,
+                renamed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
         conn.commit()
 
     def get_sample(self, path: str) -> Optional[Dict]:
@@ -326,6 +399,46 @@ class DatabaseManager:
         cursor.execute('SELECT is_favorite FROM samples WHERE path = ?', (path,))
         row = cursor.fetchone()
         return row and row['is_favorite'] == 1
+
+    # ==================== Folder Statistics Methods ====================
+
+    def get_folder_sample_count(self, folder_path: str, recursive: bool = True) -> int:
+        """
+        Get count of cached samples in a folder.
+
+        Args:
+            folder_path: Path to the folder.
+            recursive: If True, include samples from all subfolders.
+
+        Returns:
+            Number of cached samples in the folder (and subfolders if recursive).
+        """
+        import os
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        # Use OS-native path separator for matching
+        sep = os.sep
+
+        if recursive:
+            # Count all samples where path starts with folder_path + separator
+            pattern = folder_path + sep + '%'
+            cursor.execute(
+                'SELECT COUNT(*) FROM samples WHERE path LIKE ?',
+                (pattern,)
+            )
+        else:
+            # Count only direct children (samples in this folder, not subfolders)
+            # Match folder_path\filename but not folder_path\subfolder\filename
+            pattern = folder_path + sep + '%'
+            exclude_pattern = folder_path + sep + '%' + sep + '%'
+            cursor.execute('''
+                SELECT COUNT(*) FROM samples
+                WHERE path LIKE ?
+                AND path NOT LIKE ?
+            ''', (pattern, exclude_pattern))
+
+        return cursor.fetchone()[0]
 
     # ==================== Global Search Methods ====================
 
@@ -738,6 +851,508 @@ class DatabaseManager:
         cursor = conn.cursor()
         cursor.execute('DELETE FROM recent_samples')
         conn.commit()
+
+    # ==================== Fingerprint Methods ====================
+
+    def save_fingerprints(self, sample_path: str, hashes: List[tuple]):
+        """
+        Save fingerprint hashes for a sample.
+
+        Args:
+            sample_path: Path to the audio file.
+            hashes: List of (hash_value, time_offset) tuples.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        # Delete existing fingerprints for this sample
+        cursor.execute('DELETE FROM fingerprints WHERE sample_path = ?', (sample_path,))
+
+        # Bulk insert new fingerprints
+        if hashes:
+            data = [(sample_path, h[0], h[1]) for h in hashes]
+            cursor.executemany(
+                'INSERT INTO fingerprints (sample_path, hash_value, time_offset) VALUES (?, ?, ?)',
+                data
+            )
+
+        conn.commit()
+
+    def get_fingerprints(self, sample_path: str) -> List[tuple]:
+        """
+        Get fingerprint hashes for a sample.
+
+        Args:
+            sample_path: Path to the audio file.
+
+        Returns:
+            List of (hash_value, time_offset) tuples.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT hash_value, time_offset FROM fingerprints WHERE sample_path = ?',
+            (sample_path,)
+        )
+        return [(row[0], row[1]) for row in cursor.fetchall()]
+
+    def has_fingerprint(self, sample_path: str) -> bool:
+        """
+        Check if a sample has fingerprints stored.
+
+        Args:
+            sample_path: Path to the audio file.
+
+        Returns:
+            True if fingerprints exist, False otherwise.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT 1 FROM fingerprints WHERE sample_path = ? LIMIT 1',
+            (sample_path,)
+        )
+        return cursor.fetchone() is not None
+
+    def find_similar_samples(self, query_hashes: List[tuple], exclude_path: str = None, limit: int = 25) -> List[tuple]:
+        """
+        Find samples with similar fingerprints.
+
+        Uses time-aligned hash matching for accuracy.
+
+        Args:
+            query_hashes: List of (hash_value, time_offset) from query sample.
+            exclude_path: Path to exclude from results (usually the query sample).
+            limit: Maximum number of results.
+
+        Returns:
+            List of (sample_path, match_score) tuples, sorted by score descending.
+        """
+        if not query_hashes:
+            return []
+
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        # Build hash lookup for query
+        query_hash_set = {h[0] for h in query_hashes}
+        query_hash_times = {h[0]: h[1] for h in query_hashes}
+
+        # Find all samples that share hashes with the query
+        placeholders = ','.join(['?' for _ in query_hash_set])
+        query_sql = f'''
+            SELECT DISTINCT sample_path FROM fingerprints
+            WHERE hash_value IN ({placeholders})
+        '''
+        if exclude_path:
+            query_sql += ' AND sample_path != ?'
+            cursor.execute(query_sql, list(query_hash_set) + [exclude_path])
+        else:
+            cursor.execute(query_sql, list(query_hash_set))
+
+        candidate_paths = [row[0] for row in cursor.fetchall()]
+
+        # Score each candidate
+        results = []
+        for path in candidate_paths:
+            # Get matching hashes for this candidate
+            cursor.execute('''
+                SELECT hash_value, time_offset FROM fingerprints
+                WHERE sample_path = ? AND hash_value IN ({})
+            '''.format(placeholders), [path] + list(query_hash_set))
+
+            matches = []
+            for row in cursor.fetchall():
+                hash_val, offset = row
+                if hash_val in query_hash_times:
+                    query_time = query_hash_times[hash_val]
+                    time_diff = offset - query_time
+                    matches.append(time_diff)
+
+            if not matches:
+                continue
+
+            # Count time-aligned matches (most common time difference)
+            time_diff_counts = {}
+            for td in matches:
+                td_quantized = td // 5 * 5
+                time_diff_counts[td_quantized] = time_diff_counts.get(td_quantized, 0) + 1
+
+            best_count = max(time_diff_counts.values()) if time_diff_counts else 0
+
+            # Calculate similarity score (0-100)
+            score = min(100, (best_count / len(query_hashes)) * 500)
+
+            if score > 5:
+                results.append((path, score))
+
+        # Sort by score and limit
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results[:limit]
+
+    def get_samples_without_fingerprints(self, limit: int = 100) -> List[Dict]:
+        """
+        Get samples that don't have fingerprints yet.
+
+        Args:
+            limit: Maximum number of samples to return.
+
+        Returns:
+            List of sample dicts.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT s.* FROM samples s
+            LEFT JOIN fingerprints f ON s.path = f.sample_path
+            WHERE f.id IS NULL
+            LIMIT ?
+        ''', (limit,))
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    def clear_fingerprints(self, sample_path: str = None):
+        """
+        Clear fingerprints for a sample or all samples.
+
+        Args:
+            sample_path: Path to clear fingerprints for, or None for all.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        if sample_path:
+            cursor.execute('DELETE FROM fingerprints WHERE sample_path = ?', (sample_path,))
+        else:
+            cursor.execute('DELETE FROM fingerprints')
+        conn.commit()
+
+    # ==================== Lab Settings Methods ====================
+
+    def save_lab_settings(self, sample_path: str, settings: Dict):
+        """
+        Save Lab settings for a sample.
+
+        Args:
+            sample_path: Path to the audio file.
+            settings: Dictionary with lab edit settings.
+        """
+        import json
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        settings_json = json.dumps(settings)
+        cursor.execute('''
+            INSERT OR REPLACE INTO lab_settings (sample_path, settings, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+        ''', (sample_path, settings_json))
+        conn.commit()
+
+    def get_lab_settings(self, sample_path: str) -> Optional[Dict]:
+        """
+        Get Lab settings for a sample.
+
+        Args:
+            sample_path: Path to the audio file.
+
+        Returns:
+            Settings dictionary, or None if not found.
+        """
+        import json
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT settings FROM lab_settings WHERE sample_path = ?',
+            (sample_path,)
+        )
+        row = cursor.fetchone()
+        if row:
+            return json.loads(row[0])
+        return None
+
+    def delete_lab_settings(self, sample_path: str):
+        """
+        Delete Lab settings for a sample.
+
+        Args:
+            sample_path: Path to the audio file.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'DELETE FROM lab_settings WHERE sample_path = ?',
+            (sample_path,)
+        )
+        conn.commit()
+
+    def has_lab_settings(self, sample_path: str) -> bool:
+        """
+        Check if a sample has Lab settings.
+
+        Args:
+            sample_path: Path to the audio file.
+
+        Returns:
+            True if settings exist, False otherwise.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT 1 FROM lab_settings WHERE sample_path = ? LIMIT 1',
+            (sample_path,)
+        )
+        return cursor.fetchone() is not None
+
+    # ==================== Tagging Rules Methods ====================
+
+    def create_tagging_rule(self, name: str, condition_type: str, condition_field: str,
+                           condition_operator: str, condition_value: str,
+                           tags_to_add: List[str]) -> int:
+        """
+        Create a new tagging rule.
+
+        Args:
+            name: Rule name for display.
+            condition_type: Type of condition ('field', 'folder', 'bpm_range').
+            condition_field: Field to check ('filename', 'folder', 'bpm', 'key', etc).
+            condition_operator: Operator ('contains', 'equals', 'greater_than', 'less_than').
+            condition_value: Value to compare against.
+            tags_to_add: List of tags to add when rule matches.
+
+        Returns:
+            The ID of the created rule.
+        """
+        import json
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO tagging_rules (name, condition_type, condition_field,
+                                       condition_operator, condition_value, tags_to_add)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (name, condition_type, condition_field, condition_operator,
+              condition_value, json.dumps(tags_to_add)))
+        conn.commit()
+        return cursor.lastrowid
+
+    def get_tagging_rules(self, enabled_only: bool = False) -> List[Dict]:
+        """
+        Get all tagging rules.
+
+        Args:
+            enabled_only: If True, only return enabled rules.
+
+        Returns:
+            List of rule dicts.
+        """
+        import json
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        if enabled_only:
+            cursor.execute('SELECT * FROM tagging_rules WHERE is_enabled = 1 ORDER BY id')
+        else:
+            cursor.execute('SELECT * FROM tagging_rules ORDER BY id')
+        rows = cursor.fetchall()
+        rules = []
+        for row in rows:
+            rule = dict(row)
+            rule['tags_to_add'] = json.loads(rule['tags_to_add'])
+            rules.append(rule)
+        return rules
+
+    def get_tagging_rule(self, rule_id: int) -> Optional[Dict]:
+        """Get a tagging rule by ID."""
+        import json
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM tagging_rules WHERE id = ?', (rule_id,))
+        row = cursor.fetchone()
+        if row:
+            rule = dict(row)
+            rule['tags_to_add'] = json.loads(rule['tags_to_add'])
+            return rule
+        return None
+
+    def update_tagging_rule(self, rule_id: int, **kwargs) -> bool:
+        """
+        Update a tagging rule.
+
+        Args:
+            rule_id: Rule ID to update.
+            **kwargs: Fields to update.
+
+        Returns:
+            True if updated, False otherwise.
+        """
+        import json
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        # Build update query dynamically
+        updates = []
+        values = []
+        for key, value in kwargs.items():
+            if key == 'tags_to_add' and isinstance(value, list):
+                value = json.dumps(value)
+            updates.append(f'{key} = ?')
+            values.append(value)
+
+        if not updates:
+            return False
+
+        values.append(rule_id)
+        query = f'UPDATE tagging_rules SET {", ".join(updates)} WHERE id = ?'
+        cursor.execute(query, values)
+        conn.commit()
+        return cursor.rowcount > 0
+
+    def delete_tagging_rule(self, rule_id: int) -> bool:
+        """Delete a tagging rule."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM tagging_rules WHERE id = ?', (rule_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+    def toggle_tagging_rule(self, rule_id: int) -> bool:
+        """Toggle a rule's enabled status. Returns new status."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT is_enabled FROM tagging_rules WHERE id = ?', (rule_id,))
+        row = cursor.fetchone()
+        if row:
+            new_status = 0 if row['is_enabled'] else 1
+            cursor.execute('UPDATE tagging_rules SET is_enabled = ? WHERE id = ?',
+                          (new_status, rule_id))
+            conn.commit()
+            return new_status == 1
+        return False
+
+    # ==================== Sample Tags Methods ====================
+
+    def add_sample_tag(self, sample_path: str, tag: str, source: str = 'manual') -> bool:
+        """
+        Add a tag to a sample.
+
+        Args:
+            sample_path: Path to the audio file.
+            tag: Tag to add.
+            source: Source of the tag ('manual', 'rule', 'extracted').
+
+        Returns:
+            True if added, False if already exists.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                'INSERT INTO sample_tags (sample_path, tag, source) VALUES (?, ?, ?)',
+                (sample_path, tag.strip().lower(), source)
+            )
+            conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+    def remove_sample_tag(self, sample_path: str, tag: str) -> bool:
+        """Remove a tag from a sample."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'DELETE FROM sample_tags WHERE sample_path = ? AND tag = ?',
+            (sample_path, tag.strip().lower())
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+    def get_sample_tags(self, sample_path: str) -> List[str]:
+        """Get all tags for a sample."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT tag FROM sample_tags WHERE sample_path = ? ORDER BY tag',
+            (sample_path,)
+        )
+        return [row[0] for row in cursor.fetchall()]
+
+    def get_all_tags(self) -> List[Dict]:
+        """Get all unique tags with counts."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT tag, COUNT(*) as count FROM sample_tags
+            GROUP BY tag ORDER BY count DESC
+        ''')
+        return [{'tag': row[0], 'count': row[1]} for row in cursor.fetchall()]
+
+    def get_samples_by_tag(self, tag: str) -> List[Dict]:
+        """Get all samples with a specific tag."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT s.* FROM samples s
+            JOIN sample_tags st ON s.path = st.sample_path
+            WHERE st.tag = ?
+            ORDER BY s.filename
+        ''', (tag.strip().lower(),))
+        return [dict(row) for row in cursor.fetchall()]
+
+    def clear_sample_tags(self, sample_path: str, source: str = None):
+        """
+        Clear tags from a sample.
+
+        Args:
+            sample_path: Path to the audio file.
+            source: If specified, only clear tags from this source.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        if source:
+            cursor.execute(
+                'DELETE FROM sample_tags WHERE sample_path = ? AND source = ?',
+                (sample_path, source)
+            )
+        else:
+            cursor.execute('DELETE FROM sample_tags WHERE sample_path = ?', (sample_path,))
+        conn.commit()
+
+    # ==================== Rename History Methods ====================
+
+    def add_rename_history(self, original_path: str, new_path: str):
+        """Record a file rename for undo support."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO rename_history (original_path, new_path) VALUES (?, ?)',
+            (original_path, new_path)
+        )
+        conn.commit()
+
+    def get_rename_history(self, limit: int = 100) -> List[Dict]:
+        """Get rename history, most recent first."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT * FROM rename_history ORDER BY renamed_at DESC LIMIT ?
+        ''', (limit,))
+        return [dict(row) for row in cursor.fetchall()]
+
+    def clear_rename_history(self):
+        """Clear all rename history."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM rename_history')
+        conn.commit()
+
+    # ==================== Duplicate Detection Methods ====================
+
+    def get_samples_for_duplicate_check(self) -> List[Dict]:
+        """Get all samples with size and duration for duplicate checking."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT path, filename, size, duration FROM samples
+            WHERE size > 0
+            ORDER BY size, duration
+        ''')
+        return [dict(row) for row in cursor.fetchall()]
 
 
 # Global database instance (singleton pattern)

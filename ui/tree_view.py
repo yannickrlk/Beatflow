@@ -67,22 +67,7 @@ class FolderNode(ctk.CTkFrame):
             spacer = ctk.CTkFrame(row, fg_color="transparent", width=SPACING['lg'])
             spacer.pack(side="left", padx=(SPACING['xs'], 0))
 
-        # Folder button
-        self.folder_btn = ctk.CTkButton(
-            row,
-            text=f" {folder_name}",
-            font=ctk.CTkFont(family="Inter", size=13),
-            fg_color="transparent",
-            hover_color=COLORS['bg_hover'],
-            anchor="w",
-            height=28,
-            corner_radius=4,
-            text_color=COLORS['fg_secondary'],
-            command=self._on_click
-        )
-        self.folder_btn.pack(side="left", fill="x", expand=True)
-
-        # Sample count from database cache (fast) or skip if not cached
+        # Sample count from database cache - pack FIRST (right side) before folder button
         count = self._get_cached_count()
         if count > 0:
             count_label = ctk.CTkLabel(
@@ -96,6 +81,21 @@ class FolderNode(ctk.CTkFrame):
                 height=18
             )
             count_label.pack(side="right", padx=(0, SPACING['sm']))
+
+        # Folder button - pack AFTER count so it expands into remaining space
+        self.folder_btn = ctk.CTkButton(
+            row,
+            text=f" {folder_name}",
+            font=ctk.CTkFont(family="Inter", size=13),
+            fg_color="transparent",
+            hover_color=COLORS['bg_hover'],
+            anchor="w",
+            height=28,
+            corner_radius=4,
+            text_color=COLORS['fg_secondary'],
+            command=self._on_click
+        )
+        self.folder_btn.pack(side="left", fill="x", expand=True)
 
     def _has_subfolders_fast(self) -> bool:
         """Quick check if folder has subfolders (stops at first found)."""
@@ -219,7 +219,7 @@ class LibraryTreeView(ctk.CTkFrame):
 
     def __init__(self, master, root_folders=None, command=None, on_favorites=None,
                  on_recent=None, on_collection=None, on_create_collection=None,
-                 on_remove_folder=None, **kwargs):
+                 on_remove_folder=None, on_export_collection=None, **kwargs):
         super().__init__(master, width=220, corner_radius=0, fg_color=COLORS['bg_dark'], **kwargs)
         self.grid_propagate(False)
 
@@ -229,6 +229,7 @@ class LibraryTreeView(ctk.CTkFrame):
         self.on_collection = on_collection  # Callback for collection selection
         self.on_create_collection = on_create_collection  # Callback for new collection
         self.on_remove_folder = on_remove_folder  # Callback for removing root folders
+        self.on_export_collection = on_export_collection  # Callback for exporting collection
         self.root_folders = root_folders or []
         self.root_nodes = []
         self.selected_node = None
@@ -527,6 +528,7 @@ class LibraryTreeView(ctk.CTkFrame):
     def _create_collection_item(self, collection: dict):
         """Create a single collection item."""
         collection_id = collection['id']
+        collection_name = collection['name']
 
         # Row container
         row = ctk.CTkFrame(self.scroll_frame, fg_color="transparent", height=28)
@@ -540,7 +542,7 @@ class LibraryTreeView(ctk.CTkFrame):
         # Collection button
         btn = ctk.CTkButton(
             row,
-            text=f"\u25A1 {collection['name']}",  # Box symbol
+            text=f"\u25A1 {collection_name}",  # Box symbol
             font=ctk.CTkFont(size=12),
             fg_color="transparent",
             hover_color=COLORS['bg_hover'],
@@ -551,6 +553,10 @@ class LibraryTreeView(ctk.CTkFrame):
             command=lambda cid=collection_id: self._on_collection_click(cid)
         )
         btn.pack(side="left", fill="x", expand=True)
+
+        # Bind right-click context menu
+        btn.bind("<Button-3>", lambda e, cid=collection_id, name=collection_name:
+                 self._show_collection_context_menu(e, cid, name))
 
         # Sample count
         count = collection.get('sample_count', 0)
@@ -618,6 +624,37 @@ class LibraryTreeView(ctk.CTkFrame):
         """Handle create collection button click."""
         if self.on_create_collection:
             self.on_create_collection()
+
+    def _show_collection_context_menu(self, event, collection_id: int, collection_name: str):
+        """Show context menu for collection (right-click)."""
+        menu = tk.Menu(self, tearoff=0, bg=COLORS['bg_dark'], fg=COLORS['fg'],
+                       activebackground=COLORS['accent'], activeforeground='#ffffff',
+                       relief='flat', borderwidth=1)
+        menu.add_command(
+            label="Export to ZIP...",
+            command=lambda: self._on_export_collection_click(collection_id, collection_name)
+        )
+        menu.add_separator()
+        menu.add_command(
+            label="Delete Collection",
+            command=lambda: self._on_delete_collection_click(collection_id)
+        )
+
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
+    def _on_export_collection_click(self, collection_id: int, collection_name: str):
+        """Handle export collection click."""
+        if self.on_export_collection:
+            self.on_export_collection(collection_id, collection_name)
+
+    def _on_delete_collection_click(self, collection_id: int):
+        """Handle delete collection click."""
+        db = get_database()
+        db.delete_collection(collection_id)
+        self.refresh()
 
     def _on_folder_select(self, path, node):
         """Handle folder selection."""

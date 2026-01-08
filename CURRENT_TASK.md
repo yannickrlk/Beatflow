@@ -1,29 +1,52 @@
-# Current Task: Phase 13.5 - Global Shortcuts
+# Current Task: Phase 18 - COMPLETE
 
-> [!CAUTION]
-> **MANDATORY: Python 3.12**
-> `numba`/`librosa` crash with Access Violation (0xC0000005) on Python 3.14.
-> Use `py -3.12` or install Python 3.12 from python.org.
+## Summary
+Phase 18 (Kit Builder - ZIP Export) was completed on 2026-01-08.
 
-## Status: IN PROGRESS
+### What Was Implemented
+1. **`core/exporter.py`** - CollectionExporter class
+   - `export_to_zip(collection_id, output_path)` - Export collection to ZIP
+   - `export_samples_to_zip(paths, output_path)` - Export arbitrary samples
+   - `validate_files(samples)` - Check which files exist
+   - Uses `zipfile.ZIP_DEFLATED` compression
+
+2. **`ui/tree_view.py`** - Context menu for collections
+   - Right-click on any collection shows menu
+   - "Export to ZIP..." option triggers export flow
+   - "Delete Collection" option for cleanup
+
+3. **`ui/app.py`** - Export handler
+   - `_on_export_collection()` with Save As dialog
+   - Default filename from collection name
+   - Success/failure message boxes
+
+### How to Use
+1. Create a Collection and add samples to it
+2. Right-click the collection in the sidebar
+3. Select "Export to ZIP..."
+4. Choose save location and filename
+5. Click Save - ZIP file is created with all samples
+
+## Verification (All Passing)
+- [x] ZIP file is created with user-specified name
+- [x] All samples in collection included in ZIP
+- [x] ZIP opens correctly in Windows Explorer
+- [x] Original files remain untouched
+- [x] Missing files are skipped with count reported
+
+---
+
+# Next: Phase 19 - DAW Kit Export (Optional)
 
 ## Objective
-Implement system-wide global hotkeys for controlling playback (Play/Pause, Skip) even when the application is not in focus.
+Create drum kit presets for popular DAWs.
 
-## Technical Requirements
-- [ ] **Global Hotkeys**: Use `pynput` or `keyboard` library to listen for media keys.
-- [ ] **Shortcut Mapping**:
-    - `Media Play/Pause`: Toggle play/pause
-    - `Media Next`: Next track
-    - `Media Prev`: Previous track
-- [ ] **Integration**: Connect global listeners to `FooterPlayer` methods.
-- [ ] **Windows Support**: Ensure it works reliably on Windows 10/11.
+### Potential Features
+- **Ableton Live**: `.adg` Drum Rack files
+- **FL Studio**: `.fpc` presets
+- **Logic Pro**: `.patch` files
 
-## Files to Modify
-- `core/shortcuts.py` (NEW) - Global listener logic
-- `main.py` - Initialize shortcut listener
-- `requirements.txt` - Add shortcut library dependency
-
-## Notes
-- Be careful with background thread safety when calling UI methods from the shortcut thread.
-- Ensure shortcuts are cleaned up properly on app exit.
+### Notes
+- Requires research into proprietary file formats
+- May need sample DAW files to reverse-engineer structure
+- Lower priority than other features

@@ -1,5 +1,5 @@
 # Beatflow Project Context
-> Last updated: 2026-01-07 (Phase 13 - Waveform Interaction - Complete)
+> Last updated: 2026-01-08 (Phase 18 - Kit Builder ZIP Export - Complete)
 > For collaboration between Claude (implementation) and Gemini (brainstorming)
 
 ---
@@ -25,7 +25,7 @@
 - CustomTkinter (modern Tkinter wrapper)
 - Pygame (audio playback)
 - NumPy + Pillow (waveform generation)
-- Pydub (multi-format audio support)
+- Pydub + imageio-ffmpeg (MP3/FLAC/OGG support with bundled ffmpeg)
 - JSON (config persistence)
 
 ---
@@ -45,7 +45,12 @@ Beatflow/
 │   ├── database.py         # DatabaseManager - SQLite caching for metadata
 │   ├── scanner.py          # LibraryScanner - file scanning & metadata
 │   ├── waveform.py         # Waveform image generation
-│   └── analyzer.py         # AudioAnalyzer - BPM/Key detection (librosa)
+│   ├── analyzer.py         # AudioAnalyzer - BPM/Key detection (librosa)
+│   ├── fingerprint.py      # Sonic fingerprinting for similarity matching
+│   ├── shortcuts.py        # Global keyboard shortcuts listener
+│   ├── lab.py              # LabManager - non-destructive audio processing
+│   ├── sync.py             # SyncManager - time-stretch/pitch-shift for tempo sync
+│   └── exporter.py         # Exporter - ZIP bundling & kit generation
 │
 └── ui/
     ├── __init__.py
@@ -53,9 +58,10 @@ Beatflow/
     ├── app.py              # BeatflowApp - main window, layout
     ├── sidebar.py          # Sidebar - navigation (Browse + Settings)
     ├── player.py           # FooterPlayer - Global playback controls
-    ├── dialogs.py          # MetadataEditDialog - edit sample metadata
-    ├── tree_view.py        # LibraryTreeView - folder tree with expand/collapse, context menu
-    └── library.py          # SampleList + SampleRow - sample display & playback
+    ├── dialogs.py          # MetadataEditDialog + ExportDialog logic
+    ├── tree_view.py        # LibraryTreeView - folder tree, collections UI
+    ├── library.py          # SampleList + SampleRow - sample display
+    └── lab_drawer.py       # LabDrawer - interactive waveform editor UI
 ```
 
 ---
@@ -130,6 +136,45 @@ db.is_in_collection(id, path)    # Check if sample is in collection
 - Cache validation via file mtime and size
 - Thread-safe with `check_same_thread=False`
 
+### MetadataArchitect (`core/metadata_architect.py`)
+```python
+from core.metadata_architect import (
+    get_rule_engine, get_regex_renamer, get_duplicate_finder,
+    PRESET_RULES, RENAME_PATTERNS
+)
+
+# Rule Engine - Smart Tagging
+rule_engine = get_rule_engine()
+rule_engine.check_rule(rule, sample)           # Check if sample matches rule
+rule_engine.apply_rules_to_sample(sample)       # Apply matching rules, returns added tags
+rule_engine.apply_rules_to_folder(path, cb)     # Apply rules to all samples in folder
+
+# Regex Renamer - Batch Rename
+renamer = get_regex_renamer()
+renamer.preview_rename(path, pattern, replacement)      # Preview single rename
+renamer.preview_batch_rename(paths, pattern, replacement)  # Preview multiple
+renamer.rename_file(path, new_filename)         # Rename single file
+renamer.batch_rename(renames, progress_cb)      # Batch rename with progress
+renamer.undo_last_rename()                      # Undo most recent rename
+
+# Duplicate Finder
+finder = get_duplicate_finder()
+finder.calculate_checksum(path)                 # Get MD5 checksum
+finder.find_exact_duplicates(paths, progress_cb)    # Find by checksum
+finder.find_near_duplicates(paths, dur_tol, size_tol)  # Find by duration+size
+finder.safe_delete(path)                        # Move to trash or remove from DB
+
+# Database Methods for Tagging
+db.create_tagging_rule(name, type, field, op, value, tags)  # Create rule
+db.get_tagging_rules(enabled_only=False)        # Get all rules
+db.toggle_tagging_rule(rule_id)                 # Toggle enabled status
+db.delete_tagging_rule(rule_id)                 # Delete rule
+db.add_sample_tag(path, tag, source)            # Add tag to sample
+db.get_sample_tags(path)                        # Get tags for sample
+db.get_all_tags()                               # Get all unique tags with counts
+db.get_samples_by_tag(tag)                      # Get samples with tag
+```
+
 ### LibraryScanner (`core/scanner.py`)
 ```python
 LibraryScanner.scan_folder(path, recursive=False)  # Returns List[Dict]
@@ -160,7 +205,8 @@ generate_waveform_image(
 
 clear_cache()  # Clear all cached waveforms
 ```
-- Supports: WAV (native), MP3/FLAC/OGG (via pydub)
+- Supports: WAV (native), MP3/FLAC/OGG (via pydub + bundled ffmpeg)
+- Uses `imageio-ffmpeg` for bundled ffmpeg binary (no system install needed)
 - Caches images in `.waveform_cache/` directory
 - Uses peak-based downsampling for visualization
 
@@ -270,7 +316,7 @@ sample_list.clear_samples()                # Clear the sample list
 ✅ **Batch Analysis**: "Analyze All" button to analyze all samples in current view
 ✅ **Visual indicator**: Purple color (≈) for detected BPM/Key vs embedded metadata
 ✅ **Play/Pause Toggle**: Click play button toggles pause when same sample is playing
-✅ **MP3 Waveforms**: Librosa fallback when ffmpeg unavailable
+✅ **MP3 Waveforms**: Bundled ffmpeg via imageio-ffmpeg (no system install needed)
 ✅ **Clean UI**: Simplified sidebar (Browse only), clean topbar (Search + Add Folder)
 ✅ **Empty state guidance**: "Add your sample folders to get started" for first-time users
 ✅ **Folder removal**: Right-click root folders → "Remove from Library"
@@ -296,16 +342,104 @@ sample_list.clear_samples()                # Clear the sample list
 ✅ **SoundCloud-style Progress**: Played portion shows in accent color, unplayed in gray (dual-waveform compositing)
 ✅ Dark theme UI (deep blue-black tones)
 ✅ Persistent config (including sort preferences)
+✅ **Global Shortcuts**: System-wide Ctrl+Space (Play/Pause), Ctrl+Left/Right (Prev/Next)
+✅ **Customizable Shortcuts**: Change shortcuts in Settings, persisted to config
+✅ **Sonic DNA Matcher**: Spectral fingerprinting to find similar-sounding samples
+✅ **Find Similar Button**: ∞ button on each sample row, also in right-click menu
+✅ **Matching View**: Shows top 25 similar samples with "Clear Match" button
+✅ **Recursive Folder Counts**: Folder tree shows total sample count including all subfolders
+✅ **Beatflow Lab**: Inline sample editor with interactive waveform
+✅ **Lab Trim/Fade**: Draggable handles for trim start/end, fade in/out sliders
+✅ **Lab Normalize**: Toggle switch for -0.1dB normalization
+✅ **Lab Preview**: Play/pause toggle for edited audio preview
+✅ **Lab Export**: Export edited sample as WAV file
+✅ **Lab Persistence**: Settings saved per sample in SQLite database
+✅ **Universal Sync Engine**: Time-stretch samples to match target BPM
+✅ **BPM Controls**: Global BPM input field with validation (40-240 range)
+✅ **Tap Tempo**: Calculate BPM from tap intervals (last 4 taps)
+✅ **Metronome**: Toggle metronome with visual beat pulse on BPM field
+✅ **Sync Toggle**: SYNC button to enable/disable tempo-synced playback
+✅ **Sync Indicator**: ⇄ icon on sample rows when playing synced
+✅ **Metadata Architect**: Rule-based automation tool for library management
+✅ **Smart Tagging Rules**: "If-This-Then-Tag" rules (e.g., "If folder contains '808', add 'Bass' tag")
+✅ **Preset Rules**: 8 built-in presets for common tagging scenarios
+✅ **Regex Renamer**: Batch rename files with regex patterns and preview
+✅ **Rename Patterns**: 6 preset patterns for common cleanup tasks
+✅ **Duplicate Finder**: Find exact (checksum) and near-exact (duration+size) duplicates
+✅ **Safe Delete**: Remove duplicates to trash or just remove from library
+✅ **Kit Builder ZIP Export**: Export collections to ZIP files
+✅ **Collection Context Menu**: Right-click collections for export/delete options
 
 ---
 
 ## 6. Not Yet Implemented
 
-### Phase 13.5 (Global Shortcuts)
-- [ ] System-wide Play/Pause/Skip hotkeys
+### Phase 13.5 (Global Shortcuts) - COMPLETE
+- [x] System-wide Play/Pause/Skip hotkeys (Ctrl+Space, Ctrl+Left/Right)
+- [x] Customizable shortcuts in Settings dialog
+- [x] Shortcuts persist to config file
+
+### Phase 14 (Sonic DNA Matcher) - COMPLETE
+- [x] Spectral fingerprinting using librosa + scipy
+- [x] Shazam-style landmark hashing algorithm
+- [x] Time-aligned matching for accuracy
+- [x] Fingerprints stored in SQLite database
+- [x] "Find Similar" button and context menu
+- [x] Matching view with folder paths
+
+### Phase 14.5 (Recursive Folder Counts) - COMPLETE
+- [x] `db.get_folder_sample_count(path, recursive=True)` method
+- [x] Counts samples in folder + all subfolders from database cache
+- [x] Count badge displayed next to each folder in tree view
+- [x] Fixed layout: count label packed before folder button for proper display
+
+### Phase 15 (Beatflow Lab) - COMPLETE
+- [x] `core/lab.py` - LabManager with librosa/soundfile processing
+- [x] `ui/lab_drawer.py` - Interactive Canvas waveform with draggable handles
+- [x] `lab_settings` table in SQLite for per-sample persistence
+- [x] 🧪 Lab button on each SampleRow
+- [x] Trim handles (green start, red end) with drag support
+- [x] Fade in/out sliders (0-2000ms)
+- [x] Normalize toggle (-0.1dB)
+- [x] Preview button (play/pause toggle)
+- [x] Export to WAV functionality
+- [x] Lab drawer closes on folder/sample navigation
+
+### Phase 16 (Universal Sync Engine) - COMPLETE
+- [x] `core/sync.py` - SyncManager with librosa time-stretch/pitch-shift
+- [x] Time-stretching using `librosa.effects.time_stretch`
+- [x] Pitch-shifting using `librosa.effects.pitch_shift`
+- [x] Temp file caching with 24-hour auto-cleanup
+- [x] BPM input field (40-240 range) in footer player
+- [x] Tap Tempo button (calculates from last 4 taps)
+- [x] Metronome with visual beat pulse
+- [x] SYNC toggle button for tempo-synced playback
+- [x] Sync indicator (⇄) on sample rows when synced
+- [x] Auto-reload track when toggling sync on/off
+
+### Phase 17 (Metadata Architect) - COMPLETE
+- [x] `core/metadata_architect.py` - RuleEngine, RegexRenamer, DuplicateFinder
+- [x] Database tables: `tagging_rules`, `sample_tags`, `rename_history`
+- [x] Smart Tagging Rules with 6 operators (contains, equals, greater_than, etc.)
+- [x] 8 preset rules for common scenarios (808, kicks, vocals, loops, etc.)
+- [x] Regex Renamer with preview before applying
+- [x] 6 preset rename patterns (copy suffixes, BPM format, underscores, etc.)
+- [x] Duplicate Finder with exact (MD5 checksum) and near-exact matching
+- [x] Safe delete (move to trash) with database cleanup
+- [x] Tools button (lightning icon) in topbar to access dialog
+
+### Phase 18 (Kit Builder - ZIP Export) - COMPLETE
+- [x] `core/exporter.py` - CollectionExporter class with ZIP bundling
+- [x] Right-click context menu on Collections: "Export to ZIP...", "Delete Collection"
+- [x] Windows Save As dialog with default filename from collection name
+- [x] Success/failure message boxes with file path info
+- [x] Handles missing files gracefully (skips and reports count)
+
+### Planned Features (Roadmap)
+- [ ] **Phase 19**: DAW Kit Export (Ableton .adg, FL Studio .fpc)
 
 ### Lower Priority
-- [ ] AI-powered sample recommendations
+- [ ] VST/AU Plugin Version
 
 ---
 
@@ -340,4 +474,4 @@ py -3.12 main.py "C:\Path\To\Samples"
 
 ---
 
-*Last implementation: Phase 13 (Complete) - Waveform Interaction*
+*Last implementation: Phase 18 (Kit Builder - ZIP Export) - Complete*
