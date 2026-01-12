@@ -508,6 +508,10 @@ class SampleRow(ctk.CTkFrame):
 
         menu.add_command(label="Open File Location", command=self._on_open_location)
         menu.add_command(label="Copy Path", command=self._on_copy_path)
+        menu.add_separator()
+
+        # Studio Flow integration
+        menu.add_command(label="Create Task for This", command=self._on_create_task_from_sample)
 
         try:
             menu.tk_popup(event.x_root, event.y_root)
@@ -552,6 +556,14 @@ class SampleRow(ctk.CTkFrame):
         """Handle Find Similar button click."""
         if self.on_match:
             self.on_match(self)
+
+    def _on_create_task_from_sample(self):
+        """Create a task linked to this sample in Studio Flow."""
+        from core.task_manager import get_task_manager
+        task_manager = get_task_manager()
+        sample_path = self.sample['path']
+        filename = os.path.basename(sample_path)
+        task_manager.create_task_from_sample(sample_path, f"Work on {filename}")
 
     def _toggle_lab(self):
         """Toggle the lab drawer open/closed."""
@@ -731,6 +743,9 @@ class SampleList(ctk.CTkFrame):
                  on_analysis_complete=None, on_add_folder=None,
                  on_seek_request=None, config_manager=None, **kwargs):
         super().__init__(master, fg_color=COLORS['bg_main'], corner_radius=0, **kwargs)
+
+        # Prevent resize feedback loops
+        self.grid_propagate(False)
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=0)  # Topbar

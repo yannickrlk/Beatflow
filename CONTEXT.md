@@ -1,5 +1,5 @@
 # Beatflow Project Context
-> Last updated: 2026-01-08 (Client Manager Phase 3 Complete - Full Interactive UI)
+> Last updated: 2026-01-12 (Phase 21.2 Complete - Studio Flow Advanced Features)
 > For collaboration between Claude (implementation) and Gemini (brainstorming)
 
 ---
@@ -51,7 +51,8 @@ Beatflow/
 │   ├── lab.py              # LabManager - non-destructive audio processing
 │   ├── sync.py             # SyncManager - time-stretch/pitch-shift for tempo sync
 │   ├── exporter.py         # Exporter - ZIP bundling & kit generation
-│   └── client_manager.py   # ClientManager - CRM CRUD operations
+│   ├── client_manager.py   # ClientManager - CRM CRUD operations
+│   └── task_manager.py     # TaskManager - Daily tasks & project management
 │
 └── ui/
     ├── __init__.py
@@ -63,9 +64,16 @@ Beatflow/
     ├── tree_view.py        # LibraryTreeView - folder tree, collections UI
     ├── library.py          # SampleList + SampleRow - sample display
     ├── lab_drawer.py       # LabDrawer - interactive waveform editor UI
-    ├── clients_view.py     # ClientsView - CRM interface for managing clients
-    ├── client_card.py      # ClientCard & ClientListRow - client display components
-    └── client_dialogs.py   # AddClientDialog & EditClientDialog - client forms
+    ├── network_view.py     # ClientsView - Network interface for managing contacts
+    ├── network_card.py     # ClientCard & ClientListRow - contact display with role badges
+    ├── network_dialogs.py  # AddClientDialog & EditClientDialog - contact forms with role dropdown
+    ├── tasks_view.py       # TasksView - Main container for Studio Flow (4-tab layout)
+    ├── today_view.py       # TodayView - Daily quick todos list with Focus Mode
+    ├── projects_view.py    # ProjectsView - Project management with Kanban board
+    ├── focus_mode.py       # FocusModeWindow - Pomodoro timer for deep work
+    ├── productivity_dashboard.py  # ProductivityDashboard - Charts and insights
+    ├── calendar_view.py    # CalendarView - Month calendar with .ics export
+    └── task_dialogs.py     # Task dialogs for adding/editing tasks and projects
 ```
 
 ---
@@ -373,9 +381,26 @@ sample_list.clear_samples()                # Clear the sample list
 ✅ **Safe Delete**: Remove duplicates to trash or just remove from library
 ✅ **Kit Builder ZIP Export**: Export collections to ZIP files
 ✅ **Collection Context Menu**: Right-click collections for export/delete options
-✅ **Client Manager**: CRM feature for tracking clients and contacts
-✅ **Multi-View Navigation**: Sidebar navigation between Browse and Clients views
+✅ **Network Manager**: Contacts/collaborators feature with role tracking (Producer, Artist, Label, Engineer, Manager, Other)
+✅ **Role Badges**: Color-coded role badges on contact cards (Purple=Producer, Pink=Artist, Blue=Label, etc.)
+✅ **Multi-View Navigation**: Sidebar navigation between Browse and Network views
 ✅ **State Preservation**: Switching views preserves search/scroll state
+✅ **Studio Flow UX Enhancements**: Advanced task management features
+✅ **Completion Animations**: Smooth fade-out with checkmark on task completion
+✅ **Keyboard Shortcuts**: Ctrl+T to quick-add tasks
+✅ **Context Tags Visual**: Color-coded chips (@Studio=purple, @Mixing=blue, @Marketing=red, @Admin=gray)
+✅ **Tag Selector UI**: Clickable tag buttons below task input for easy context selection
+✅ **Priority Indicators**: Color-coded dots (Red=urgent, Orange=high, Gray=normal)
+✅ **Smart Placeholders**: Rotating tips in quick add input
+✅ **Sample Linking**: Right-click sample → "Create Task for This" with link indicator
+✅ **Collection Projects**: Right-click collection → "Create Project from Collection"
+✅ **Project Templates**: Pre-built templates (Album Release, Sample Pack, Client Beat)
+✅ **Template Selection Dialog**: Choose template when creating new project
+✅ **Focus Mode (Pomodoro)**: Fullscreen distraction-free timer with 25-minute sessions
+✅ **Productivity Dashboard**: Charts showing tasks completed over time, context breakdown
+✅ **Calendar View**: Month calendar with task indicators and navigation
+✅ **Calendar Export**: Export tasks to .ics file for Google Calendar/Outlook
+✅ **Focus Sessions Tracking**: Database tracking of Pomodoro sessions and time spent
 
 ---
 
@@ -442,8 +467,22 @@ sample_list.clear_samples()                # Clear the sample list
 - [x] Success/failure message boxes with file path info
 - [x] Handles missing files gracefully (skips and reports count)
 
+### Phase 21.1 (Studio Flow UX Enhancements) - COMPLETE
+- [x] Completion animations with fade-out and checkmark overlay
+- [x] Keyboard shortcut Ctrl+T for quick add focus
+- [x] Context tags visual with color-coded chips
+- [x] Priority indicators with colored dots
+- [x] Smart rotating placeholder tips
+- [x] Sample linking (right-click → Create Task for This)
+- [x] Collection projects (right-click → Create Project from Collection)
+- [x] Project templates with pre-built workflows
+- [x] Template selection dialog on new project
+
 ### Planned Features (Roadmap)
-- [ ] **Phase 19**: DAW Kit Export (Ableton .adg, FL Studio .fpc)
+- [ ] **Phase 20**: DAW Kit Export (Ableton .adg, FL Studio .fpc)
+- [x] **Phase 21**: Studio Flow (Task Management) - COMPLETE
+- [x] **Phase 21.1**: Studio Flow UX Enhancements - COMPLETE
+- [x] **Phase 21.2**: Studio Flow Advanced Features (Focus Mode, Dashboard, Calendar) - COMPLETE
 
 ### Lower Priority
 - [ ] VST/AU Plugin Version
@@ -481,13 +520,13 @@ py -3.12 main.py "C:\Path\To\Samples"
 
 ---
 
-*Last implementation: Client Manager Phase 3 (Interactive UI) - Complete*
+*Last implementation: Phase 14 (Global UI Polish & Performance) - Complete*
 
 ---
 
 ## Client Manager Components
 
-### ClientCard (`ui/client_card.py`)
+### ClientCard (`ui/network_card.py`)
 ```python
 class ClientCard(ctk.CTkFrame):
     """Premium glass card for client display."""

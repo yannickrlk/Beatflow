@@ -36,7 +36,8 @@ class Sidebar(ctk.CTkFrame):
 
         nav_items = [
             ("browse", "Browse", True),  # Active by default
-            ("clients", "Clients", False),
+            ("network", "Network", False),
+            ("tasks", "Studio Flow", False),  # Task management
         ]
 
         for nav_id, label, is_active in nav_items:
@@ -44,29 +45,13 @@ class Sidebar(ctk.CTkFrame):
             self.nav_buttons[nav_id] = btn
             self.nav_indicators[nav_id] = indicator
 
-        # Settings at bottom - 8px grid
-        settings_frame = ctk.CTkFrame(self, fg_color="transparent")
-        settings_frame.pack(side="bottom", fill="x", pady=SPACING['md'])
-
-        settings_btn = ctk.CTkButton(
-            settings_frame,
-            text="  Settings",
-            font=ctk.CTkFont(family="Inter", size=13),
-            fg_color="transparent",
-            hover_color=COLORS['bg_hover'],
-            anchor="w",
-            height=40,
-            text_color=COLORS['fg_dim'],
-            corner_radius=4
-        )
-        settings_btn.pack(fill="x", padx=SPACING['sm'])
-
     def _create_nav_button(self, parent, nav_id, label, is_active=False):
         """Create a navigation button with vertical accent indicator."""
         # Icon mapping
         icons = {
             "browse": "\U0001f4c1",  # Folder icon
-            "clients": "\U0001f464",  # Person icon
+            "network": "\U0001f310",  # Globe icon for Network
+            "tasks": "\u2713",  # Checkmark icon for Studio Flow
         }
 
         icon = icons.get(nav_id, "")

@@ -20,7 +20,8 @@ from ui.tree_view import LibraryTreeView
 from ui.library import SampleList
 from ui.player import FooterPlayer
 from ui.dialogs import MetadataEditDialog, NewCollectionDialog, AddToCollectionDialog, SettingsDialog, MetadataArchitectDialog
-from ui.clients_view import ClientsView
+from ui.network_view import ClientsView
+from ui.tasks_view import TasksView
 from core.config import ConfigManager
 from core.scanner import LibraryScanner
 from core.database import get_database
@@ -187,8 +188,12 @@ class BeatflowApp(BeatflowAppBase):
         # Set initial volume from config
         self.player.set_volume(self.config_manager.volume)
 
-        # ==================== Clients View ====================
-        self.clients_view = ClientsView(self)
+        # ==================== Network View ====================
+        self.network_view = ClientsView(self)  # Network view (contacts/collaborators)
+        # Initially hidden - don't grid it yet
+
+        # ==================== Tasks View (Studio Flow) ====================
+        self.tasks_view = TasksView(self)  # Task management
         # Initially hidden - don't grid it yet
 
     def _build_topbar(self):
@@ -380,23 +385,27 @@ class BeatflowApp(BeatflowAppBase):
             self.sample_list.filter_samples(self.search_var.get(), global_search=is_global)
 
     def _on_nav_change(self, nav_id):
-        """Handle navigation change between Browse and Clients views."""
+        """Handle navigation change between Browse, Network, and Tasks views."""
         if nav_id == self.current_view:
             return
 
         if nav_id == "browse":
             # Show Browse view components
             self._show_browse_view()
-        elif nav_id == "clients":
-            # Show Clients view
-            self._show_clients_view()
+        elif nav_id == "network":
+            # Show Network view (contacts/collaborators)
+            self._show_network_view()
+        elif nav_id == "tasks":
+            # Show Tasks view (Studio Flow)
+            self._show_tasks_view()
 
         self.current_view = nav_id
 
     def _show_browse_view(self):
         """Show the sample browser view."""
-        # Hide clients view
-        self.clients_view.grid_remove()
+        # Hide other views
+        self.network_view.grid_remove()
+        self.tasks_view.grid_remove()
 
         # Show browse components
         self.topbar.grid(row=0, column=1, columnspan=2, sticky="ew")
@@ -404,16 +413,30 @@ class BeatflowApp(BeatflowAppBase):
         self.sample_list.grid(row=1, column=2, sticky="nsew")
         self.player.grid(row=2, column=1, columnspan=2, sticky="ew")
 
-    def _show_clients_view(self):
-        """Show the clients manager view."""
-        # Hide browse components
+    def _show_network_view(self):
+        """Show the network/contacts manager view."""
+        # Hide other views
         self.topbar.grid_remove()
         self.tree_view.grid_remove()
         self.sample_list.grid_remove()
         self.player.grid_remove()
+        self.tasks_view.grid_remove()
 
-        # Show clients view (spans columns 1-2, rows 0-2)
-        self.clients_view.grid(row=0, column=1, columnspan=2, rowspan=3, sticky="nsew")
+        # Show network view (spans columns 1-2, rows 0-2)
+        self.network_view.grid(row=0, column=1, columnspan=2, rowspan=3, sticky="nsew")
+
+    def _show_tasks_view(self):
+        """Show the tasks/Studio Flow view."""
+        # Hide other views
+        self.topbar.grid_remove()
+        self.tree_view.grid_remove()
+        self.sample_list.grid_remove()
+        self.player.grid_remove()
+        self.network_view.grid_remove()
+
+        # Show tasks view (spans columns 1-2, rows 0-2)
+        self.tasks_view.grid(row=0, column=1, columnspan=2, rowspan=3, sticky="nsew")
+        self.tasks_view.refresh()
 
     def _on_favorites_select(self):
         """Handle favorites selection from tree view."""

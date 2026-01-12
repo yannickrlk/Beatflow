@@ -18,3 +18,13 @@ env/
 
 # Project specific
 .waveform_cache/
+
+# Build artifacts
+build/
+dist/
+installer/
+*.spec
+
+# Misc
+nul
+IMAGE/

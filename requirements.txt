@@ -24,3 +24,10 @@ scipy>=1.10.0
 
 # Global shortcuts
 pynput>=1.7.6
+
+# Charts and visualization (Phase 21.2 - Productivity Dashboard)
+matplotlib>=3.7.0
+
+# Calendar export (Phase 21.2 - Calendar Integration)
+icalendar>=5.0.0
+pytz>=2023.3

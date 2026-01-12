@@ -188,7 +188,7 @@ class DatabaseManager:
             )
         ''')
 
-        # Create clients table for Client Manager
+        # Create clients table for Client Manager (now "Network")
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS clients (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -199,14 +199,138 @@ class DatabaseManager:
                 twitter TEXT,
                 website TEXT,
                 notes TEXT,
+                role TEXT DEFAULT 'Producer',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        # Migration: Add role column if it doesn't exist
+        cursor.execute("PRAGMA table_info(clients)")
+        client_columns = [col[1] for col in cursor.fetchall()]
+        if 'role' not in client_columns:
+            cursor.execute("ALTER TABLE clients ADD COLUMN role TEXT DEFAULT 'Producer'")
 
         # Create index for client name searches
         cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_clients_name
             ON clients(name)
+        ''')
+
+        # ==================== Studio Flow Tables ====================
+
+        # Daily tasks table for quick todos
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS daily_tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                completed BOOLEAN DEFAULT 0,
+                priority INTEGER DEFAULT 0,
+                time_estimate INTEGER,
+                context TEXT,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                completed_at TIMESTAMP,
+                scheduled_date TEXT
+            )
+        ''')
+
+        # Projects table for project management
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS projects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                description TEXT,
+                status TEXT DEFAULT 'active',
+                deadline TEXT,
+                color TEXT DEFAULT '#FF6B35',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                completed_at TIMESTAMP
+            )
+        ''')
+
+        # Project tasks table (subtasks within projects)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS project_tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT,
+                completed BOOLEAN DEFAULT 0,
+                priority INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'todo',
+                due_date TEXT,
+                time_estimate INTEGER,
+                order_index INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                completed_at TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+            )
+        ''')
+
+        # Index for daily tasks by date
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_daily_tasks_date
+            ON daily_tasks(scheduled_date)
+        ''')
+
+        # Index for project tasks by project
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_project_tasks_project
+            ON project_tasks(project_id)
+        ''')
+
+        # Migration: Add linked entity columns to daily_tasks if they don't exist
+        cursor.execute("PRAGMA table_info(daily_tasks)")
+        daily_task_columns = [col[1] for col in cursor.fetchall()]
+        if 'linked_entity_type' not in daily_task_columns:
+            cursor.execute('ALTER TABLE daily_tasks ADD COLUMN linked_entity_type TEXT')
+        if 'linked_entity_id' not in daily_task_columns:
+            cursor.execute('ALTER TABLE daily_tasks ADD COLUMN linked_entity_id TEXT')
+        if 'scheduled_time' not in daily_task_columns:
+            cursor.execute('ALTER TABLE daily_tasks ADD COLUMN scheduled_time TEXT')
+        if 'recurrence_rule' not in daily_task_columns:
+            cursor.execute('ALTER TABLE daily_tasks ADD COLUMN recurrence_rule TEXT')
+
+        # Migration: Add linked entity columns to project_tasks if they don't exist
+        cursor.execute("PRAGMA table_info(project_tasks)")
+        project_task_columns = [col[1] for col in cursor.fetchall()]
+        if 'linked_entity_type' not in project_task_columns:
+            cursor.execute('ALTER TABLE project_tasks ADD COLUMN linked_entity_type TEXT')
+        if 'linked_entity_id' not in project_task_columns:
+            cursor.execute('ALTER TABLE project_tasks ADD COLUMN linked_entity_id TEXT')
+
+        # Create project templates table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS project_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                tasks_json TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Migration: Add time_spent column to daily_tasks
+        if 'time_spent' not in daily_task_columns:
+            cursor.execute('ALTER TABLE daily_tasks ADD COLUMN time_spent INTEGER DEFAULT 0')
+
+        # Migration: Add time_spent and assigned_to columns to project_tasks
+        if 'time_spent' not in project_task_columns:
+            cursor.execute('ALTER TABLE project_tasks ADD COLUMN time_spent INTEGER DEFAULT 0')
+        if 'assigned_to' not in project_task_columns:
+            cursor.execute('ALTER TABLE project_tasks ADD COLUMN assigned_to INTEGER')
+
+        # Create focus_sessions table for Pomodoro tracking
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS focus_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id INTEGER NOT NULL,
+                is_daily_task BOOLEAN DEFAULT 1,
+                duration INTEGER NOT NULL,
+                completed BOOLEAN DEFAULT 0,
+                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                ended_at TIMESTAMP
+            )
         ''')
 
         conn.commit()
@@ -403,6 +527,31 @@ class DatabaseManager:
         conn = self._get_connection()
         cursor = conn.cursor()
         cursor.execute('SELECT COUNT(*) FROM samples WHERE is_favorite = 1')
+        return cursor.fetchone()[0]
+
+    def get_folder_sample_count(self, folder_path: str) -> int:
+        """
+        Get the count of cached samples in a folder (fast, from database).
+
+        Args:
+            folder_path: Path to the folder.
+
+        Returns:
+            Number of samples in the folder that are in the cache.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        # Use LIKE with folder prefix to match samples in this folder (not subfolders)
+        # Normalize path separators
+        folder_path = folder_path.replace('\\', '/')
+        if not folder_path.endswith('/'):
+            folder_path += '/'
+        # Match files directly in folder (not in subfolders)
+        cursor.execute('''
+            SELECT COUNT(*) FROM samples
+            WHERE REPLACE(path, '\\', '/') LIKE ?
+            AND REPLACE(path, '\\', '/') NOT LIKE ?
+        ''', (folder_path + '%', folder_path + '%/%'))
         return cursor.fetchone()[0]
 
     def is_favorite(self, path: str) -> bool:

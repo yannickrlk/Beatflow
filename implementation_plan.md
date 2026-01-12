@@ -377,7 +377,204 @@ All UX improvements have been implemented.
 
 ---
 
-## 🔄 Planned: Phase 19 - DAW Kit Export
+
+## ✅ Completed: Phase 19 - Network Label Updates & Producer Role
+
+**Goal**: Update UI labels from "Clients" to "Network" and add role field for collaboration tracking.
+
+### Implementation (2026-01-12)
+- [x] Added `role` column to `clients` table (TEXT, default 'Producer')
+- [x] Created migration for existing databases
+- [x] Updated `add_client()`, `update_client()`, `get_clients()` for role field
+- [x] **Sidebar**: Changed "Clients" to "Network" with 🌐 globe icon
+- [x] **Network View**: Updated terminology ("Contact" instead of "Client")
+- [x] **Network Card**: Added color-coded role badges
+- [x] **Network Dialogs**: Added role dropdown with 6 options
+- [x] Role colors: Purple (Producer), Pink (Artist), Blue (Label), Green (Engineer), Amber (Manager), Gray (Other)
+
+---
+
+
+
+---
+
+## ✅ Completed: Phase 21 - Studio Flow (Task Management)
+
+**Goal**: Add task management system for daily todos and project tracking tailored to music producer workflows.
+
+### Implementation (2026-01-12)
+- [x] Database tables: `daily_tasks`, `projects`, `project_tasks`
+- [x] `core/task_manager.py` - Full CRUD for tasks and projects
+- [x] `ui/tasks_view.py` - Main container with Today/Projects tabs
+- [x] `ui/today_view.py` - Daily quick todos with checkboxes
+- [x] `ui/projects_view.py` - Project list and Kanban views
+- [x] Sidebar: Added "Studio Flow" navigation with checkmark icon
+- [x] App integration: Full navigation wiring
+
+### Research Insights
+- Music producers need both **quick daily capture** (ideas, reminders) and **structured project tracking** (album releases, sample packs)
+- GTD (Getting Things Done) methodology with context-based organization (@Studio, @Mixing, @Marketing)
+- Visual timeline and progress tracking are essential
+- Minimal friction for task entry during creative sessions
+
+### Two-Tab Approach
+
+#### Tab 1: "Today" (Daily Quick Todos)
+- [x] Simple focused list for today's tasks
+- [x] Quick add with Enter key
+- [ ] Checkbox completion with fade-out animation (post-MVP)
+- [x] Optional time estimates and priority levels (in schema)
+- [ ] Drag to reorder (post-MVP)
+- [x] Context tags (@Studio, @Mixing, @Marketing, @Admin)
+
+#### Tab 2: "Projects" (Deep Project Management)
+- [x] List of active projects (Album Release, Sample Pack, Client Beat, etc.)
+- [x] Each project contains:
+  - Title, description, deadline
+  - Subtasks with individual due dates
+  - Progress bar visualization
+  - Tags/categories
+  - Notes section
+- [x] Kanban-style view (To Do → In Progress → Done) - placeholder
+- [ ] Timeline/calendar view option (post-MVP)
+
+### Database Schema
+- [x] **`daily_tasks` table**: id, title, completed, priority, time_estimate, context, notes, scheduled_date
+- [x] **`projects` table**: id, title, description, status, deadline, color, created_at
+- [x] **`project_tasks` table**: id, project_id (FK), title, description, completed, priority, status, due_date, order_index
+
+### Core Logic
+- [x] Create `core/task_manager.py` with `TaskManager` class
+- [x] Methods for daily tasks: add, get, toggle, delete, reorder
+- [x] Methods for projects: create, get, update, delete, archive
+- [x] Methods for project tasks: add, get, toggle, update_status, delete
+- [ ] Statistics: completion rates, overdue tasks (post-MVP)
+
+### UI Components
+- [x] **`ui/tasks_view.py`**: Main container with two-tab layout
+- [x] **`ui/today_view.py`**: Daily tasks view with quick add input
+- [x] **`ui/projects_view.py`**: Projects view with List/Kanban toggle
+- [ ] **`ui/task_dialogs.py`**: Dialogs for adding/editing tasks and projects (post-MVP)
+- [x] **Sidebar**: Add "Studio Flow" navigation item (icon: ✓ or 📋)
+- [x] **App integration**: Wire up navigation
+
+### Features
+- [ ] Keyboard shortcuts: `Ctrl+T` (quick add), `Ctrl+Shift+T` (new project) (post-MVP)
+- [ ] Drag & drop for reordering and Kanban columns (post-MVP)
+- [ ] Inline editing for task titles (post-MVP)
+- [x] Visual progress indicators and completion animations
+- [x] Empty states with encouraging messages
+
+
+### Future Enhancements (Post-MVP)
+- Calendar view with visual timeline
+- Recurring tasks (daily/weekly)
+- Task templates for common workflows
+- Pomodoro timer integration
+- Link tasks to samples/collections
+- Assign tasks to network contacts
+
+**Estimated Development Time**: 10-14 hours
+
+---
+
+## ✅ COMPLETE: Phase 21.1 - Studio Flow UX Enhancements
+
+**Goal**: Polish Studio Flow with micro-interactions, keyboard shortcuts, and power-user features based on UX brainstorming.
+
+### MVP Polish (High Priority)
+- [x] **Completion Animations**: Smooth fade-out with checkmark icon on task completion
+- [x] **Keyboard Shortcuts**:
+  - `Ctrl+T`: Quick add task (global shortcut)
+- [ ] **Drag-to-Reorder**: Drag handles on tasks for priority management (post-MVP)
+- [x] **Context Tags Visual**: Color-coded chips for @Studio, @Mixing, @Marketing, @Admin, @Other
+- [x] **Tag Selector UI**: Clickable tag buttons below task input for easy context selection
+- [x] **Priority Indicators**: Color-coded dots (Red=urgent, Orange=high, Gray=normal)
+- [x] **Smart Placeholders**: Rotating tips in quick add input ("Try: 'Mix 808 samples'", "Try: 'Organize downloads folder'")
+- [x] **Enhanced Empty States**: Actionable examples ("Add your first task, like 'Organize sample library'")
+
+### Sample Linking (Game-Changer Feature)
+- [x] Link tasks to Beatflow entities (samples, folders, collections)
+- [x] Right-click sample → "Create task for this"
+- [x] Right-click collection → "Create project from collection"
+- [x] Click linked task → Auto-navigate to sample/folder/collection
+- [x] Visual indicator (🔗 icon) on linked tasks
+- [x] Database: Add `linked_entity_type` and `linked_entity_id` columns to tasks
+
+### Time Blocking (Infrastructure Ready)
+- [x] Database: `scheduled_time` column added to daily_tasks
+- [x] Core: `set_task_time()` and `get_tasks_by_time()` methods
+- [ ] UI: "Schedule" button on task rows (post-MVP)
+- [ ] UI: Mini timeline view (post-MVP)
+
+### Project Templates
+- [x] Pre-built templates:
+  - "Album Release" (Record, Mix, Master, Artwork, Upload, Marketing)
+  - "Sample Pack" (Record, Process, Tag, Demo, Export ZIP)
+  - "Client Beat" (Meeting, Create, Revisions, Delivery)
+- [x] Template selection on "New Project"
+- [x] Auto-generated tasks with calculated due dates
+
+### Smart Filters & Search (Infrastructure Ready)
+- [x] Core: `search_tasks()` method with filters
+- [ ] UI: Filter dropdown (post-MVP)
+- [ ] Saved filter presets (post-MVP)
+
+### Recurring Tasks (Infrastructure Ready)
+- [x] Database: `recurrence_rule` column added
+- [x] Core: `set_task_recurrence()` and `generate_recurring_tasks()` methods
+- [ ] UI: Recurrence picker (post-MVP)
+
+**Status**: COMPLETE (Core features implemented, UI polish deferred to post-MVP)
+
+---
+
+## ✅ Completed: Phase 21.2 - Studio Flow Advanced Features
+
+**Goal**: Deep integrations, productivity insights, and collaboration.
+
+### Implementation (2026-01-12)
+
+### Focus Mode
+- [x] Fullscreen-like window (800x600) with ESC to close
+- [x] Pomodoro timer (25min default, configurable 15/25/45/60)
+- [x] Start/Pause/Stop controls with progress bar
+- [x] Time tracking per task via `focus_sessions` table
+- [x] `QuickFocusDialog` for task selection before starting
+- [x] Session tracking saved to database
+
+### Productivity Dashboard
+- [x] Stats cards: Today's Tasks, Focus Time, Sessions, Active Projects
+- [x] Weekly completion bar chart (last 7 days)
+- [x] Context breakdown pie chart (@Studio, @Mixing, etc.)
+- [x] Focus sessions area chart (last 7 days)
+- [x] Insights panel with dynamic productivity tips
+- [x] Fallback to text-based charts if matplotlib unavailable
+
+### Calendar Integration
+- [x] Month calendar grid with < > navigation
+- [x] Task indicators (colored dots) on dates
+- [x] Date selection with task list panel
+- [x] "Today" quick navigation button
+- [x] Export to .ics with RFC 5545 compliance
+
+### Database Updates
+- [x] `time_spent` column added to `daily_tasks` and `project_tasks`
+- [x] `assigned_to` column added to `project_tasks`
+- [x] `focus_sessions` table for Pomodoro tracking
+
+### UI Integration
+- [x] `ui/tasks_view.py` updated with 4-tab layout (Today, Projects, Dashboard, Calendar)
+- [x] `ui/today_view.py` - Focus Mode button in header
+
+### Future Enhancements (Post-MVP)
+- [ ] Drag tasks to reschedule in calendar
+- [ ] Assign tasks to Network contacts
+- [ ] "My tasks" vs "All tasks" filter
+
+---
+
+## 🔮 Planned: Phase 20 - DAW Kit Export
 **Goal**: Create drum kit presets for popular DAWs.
 - [ ] **Ableton Live**: Create `.adg` Drum Rack files
 - [ ] **FL Studio**: Create `.fpc` presets
