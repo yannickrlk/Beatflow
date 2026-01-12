@@ -1,4 +1,4 @@
-"""Global Footer Player component for Beatflow."""
+"""Global Footer Player component for ProducerOS."""
 
 import os
 import time

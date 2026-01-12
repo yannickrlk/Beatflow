@@ -8,7 +8,16 @@
       "Bash(cat:*)",
       "Bash(pip show:*)",
       "Bash(winget install:*)",
-      "Bash(py:*)"
+      "Bash(py:*)",
+      "Bash(dir /b \"C:\\\\Users\\\\y4nn1\\\\.gemini\\\\antigravity\\\\scratch\\\\Beatflow\")",
+      "Bash(findstr:*)",
+      "Bash(./Beatflow.exe)",
+      "Bash(\"/c/Users/y4nn1/AppData/Local/Programs/Inno Setup 6/ISCC.exe\" Beatflow_installer.iss)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: Complete Phase 21.2 - Studio Flow Advanced Features\n\nPhase 21.2 Implementation:\n- Focus Mode: Pomodoro timer \\(25min\\) with Start/Pause/Stop controls\n- Productivity Dashboard: Charts \\(matplotlib\\) for task completion stats\n- Calendar View: Month calendar with task indicators and .ics export\n- Time tracking: focus_sessions table and time_spent columns\n\nNew files:\n- ui/focus_mode.py - FocusModeWindow, QuickFocusDialog\n- ui/productivity_dashboard.py - Charts and insights\n- ui/calendar_view.py - Month calendar with export\n- ui/tasks_view.py - 4-tab layout \\(Today/Projects/Dashboard/Calendar\\)\n- ui/today_view.py - Daily tasks with tag selector\n- ui/projects_view.py - Project management with templates\n- core/task_manager.py - Full CRUD for tasks, projects, focus sessions\n- tests/test_studio_flow.py - 32 automated tests \\(all passing\\)\n\nAlso includes:\n- Inno Setup installer script \\(Beatflow_installer.iss\\)\n- Updated requirements.txt \\(matplotlib, icalendar, pytz\\)\n- Updated documentation \\(CONTEXT.md, CURRENT_TASK.md, implementation_plan.md\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "WebSearch",
+      "Bash(dir \"C:\\\\Users\\\\y4nn1\\\\.gemini\\\\antigravity\\\\scratch\\\\Beatflow\\\\legal\")"
     ]
   }
 }

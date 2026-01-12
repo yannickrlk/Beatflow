@@ -1,4 +1,4 @@
-# Theme and color constants for Beatflow UI
+# Theme and color constants for ProducerOS UI
 # Cyber-Premium Design System
 
 COLORS = {

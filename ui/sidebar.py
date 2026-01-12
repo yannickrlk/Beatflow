@@ -1,4 +1,4 @@
-"""Sidebar navigation component for Beatflow."""
+"""Sidebar navigation component for ProducerOS."""
 
 import customtkinter as ctk
 from ui.theme import COLORS, SPACING
@@ -24,8 +24,8 @@ class Sidebar(ctk.CTkFrame):
 
         logo_text = ctk.CTkLabel(
             logo_frame,
-            text="Beatflow",
-            font=ctk.CTkFont(family="Inter", size=18, weight="bold"),
+            text="ProducerOS",
+            font=ctk.CTkFont(family="Inter", size=16, weight="bold"),
             text_color=COLORS['fg']
         )
         logo_text.pack(side="left")

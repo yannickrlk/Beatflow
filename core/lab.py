@@ -1,4 +1,4 @@
-"""Beatflow Lab - Non-destructive audio processing engine."""
+"""ProducerOS Lab - Non-destructive audio processing engine."""
 
 import os
 import tempfile
@@ -36,7 +36,7 @@ except ImportError:
 
 
 class LabManager:
-    """Manages non-destructive audio processing for the Beatflow Lab."""
+    """Manages non-destructive audio processing for the ProducerOS Lab."""
 
     def __init__(self):
         """Initialize the Lab Manager."""
@@ -166,7 +166,7 @@ class LabManager:
             base_name = os.path.splitext(os.path.basename(source_path))[0]
             timestamp = int(time.time() * 1000) % 100000  # Last 5 digits of ms timestamp
             temp_dir = tempfile.gettempdir()
-            temp_path = os.path.join(temp_dir, f"beatflow_lab_{base_name}_{timestamp}.wav")
+            temp_path = os.path.join(temp_dir, f"produceros_lab_{base_name}_{timestamp}.wav")
 
             # Transpose for soundfile (expects samples x channels)
             audio_data = y.T if y.ndim > 1 else y

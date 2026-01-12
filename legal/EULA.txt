@@ -1,0 +1,78 @@
+END USER LICENSE AGREEMENT (EULA) FOR BEATFLOW
+
+Last Updated: January 12, 2026
+
+PLEASE READ THIS AGREEMENT CAREFULLY BEFORE USING BEATFLOW.
+
+By installing, copying, or otherwise using ProducerOS ("Software"), you agree to be bound by the terms of this End User License Agreement ("Agreement"). If you do not agree to these terms, do not install or use the Software.
+
+1. GRANT OF LICENSE
+
+Subject to the terms of this Agreement, ProducerOS grants you a non-exclusive, non-transferable, limited license to install and use the Software on your personal computer(s) for personal or commercial music production purposes.
+
+2. PERMITTED USES
+
+You may:
+- Install the Software on multiple computers owned by you
+- Use the Software for personal and commercial music production
+- Create and distribute music made using the Software
+- Make backup copies of the Software for archival purposes
+
+3. RESTRICTIONS
+
+You may not:
+- Redistribute, sell, lease, or sublicense the Software
+- Reverse engineer, decompile, or disassemble the Software
+- Remove or alter any proprietary notices or labels on the Software
+- Use the Software for any unlawful purpose
+- Share your license with others or allow others to use your copy
+
+4. INTELLECTUAL PROPERTY
+
+The Software is protected by copyright laws and international treaties. ProducerOS retains all intellectual property rights in the Software. This Agreement does not grant you any rights to trademarks or service marks of ProducerOS.
+
+5. YOUR CONTENT
+
+You retain all rights to your audio samples, music, and other content that you manage using the Software. ProducerOS does not claim any ownership over your content.
+
+6. PRIVACY
+
+ProducerOS respects your privacy. The Software:
+- Does NOT collect personal data
+- Does NOT upload your samples or files
+- Processes all data locally on your computer
+- May send anonymous crash reports only with your explicit consent
+
+See our Privacy Policy for more details.
+
+7. DISCLAIMER OF WARRANTIES
+
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+8. LIMITATION OF LIABILITY
+
+IN NO EVENT SHALL BEATFLOW BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING BUT NOT LIMITED TO LOSS OF DATA, LOSS OF PROFITS, OR BUSINESS INTERRUPTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR INABILITY TO USE THE SOFTWARE.
+
+9. TERMINATION
+
+This Agreement is effective until terminated. Your rights under this Agreement will terminate automatically without notice if you fail to comply with any of its terms. Upon termination, you must destroy all copies of the Software in your possession.
+
+10. UPDATES
+
+ProducerOS may provide updates to the Software from time to time. These updates may be subject to additional or different terms.
+
+11. GOVERNING LAW
+
+This Agreement shall be governed by and construed in accordance with the laws of France, without regard to its conflict of law provisions.
+
+12. ENTIRE AGREEMENT
+
+This Agreement constitutes the entire agreement between you and ProducerOS regarding the Software and supersedes all prior agreements and understandings.
+
+13. CONTACT
+
+For questions about this Agreement, contact:
+Email: support@produceros.app
+Website: https://produceros.app
+
+By installing or using ProducerOS, you acknowledge that you have read this Agreement, understand it, and agree to be bound by its terms and conditions.

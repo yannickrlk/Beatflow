@@ -1,4 +1,4 @@
-"""Global keyboard shortcuts for Beatflow.
+"""Global keyboard shortcuts for ProducerOS.
 
 Listens for configurable keyboard shortcuts system-wide
 and dispatches commands to the FooterPlayer.
@@ -48,7 +48,7 @@ class GlobalShortcutListener:
         """Initialize the global shortcut listener.
 
         Args:
-            app: The main BeatflowApp instance (for thread-safe UI updates).
+            app: The main ProducerOSApp instance (for thread-safe UI updates).
             player: The FooterPlayer instance to control.
             config_manager: ConfigManager for loading/saving shortcut settings.
         """

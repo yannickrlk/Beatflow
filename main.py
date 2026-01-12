@@ -18,7 +18,7 @@ except ImportError:
 import sys
 import customtkinter as ctk
 import pygame
-from ui.app import BeatflowApp
+from ui.app import ProducerOSApp
 from core.shortcuts import GlobalShortcutListener
 
 
@@ -44,7 +44,7 @@ def main():
             folder_to_add = arg_path
 
     # Launch App with optional folder to add
-    app = BeatflowApp(folder_to_add=folder_to_add)
+    app = ProducerOSApp(folder_to_add=folder_to_add)
 
     # Initialize global shortcuts listener
     shortcut_listener = GlobalShortcutListener(app, app.player, app.config_manager)

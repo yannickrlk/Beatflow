@@ -16,10 +16,10 @@ class DatabaseManager:
             db_path: Path to the SQLite database file. If None, uses default location.
         """
         if db_path is None:
-            # Default to beatflow.db in the project root
+            # Default to produceros.db in the project root
             db_path = os.path.join(
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                'beatflow.db'
+                'produceros.db'
             )
         self.db_path = db_path
         self._conn = None
@@ -136,7 +136,7 @@ class DatabaseManager:
             ON fingerprints(sample_path)
         ''')
 
-        # Create lab_settings table for Beatflow Lab edits
+        # Create lab_settings table for ProducerOS Lab edits
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS lab_settings (
                 sample_path TEXT PRIMARY KEY,

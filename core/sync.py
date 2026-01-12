@@ -1,4 +1,4 @@
-"""Beatflow Sync Engine - Time-stretching and pitch-shifting for tempo sync."""
+"""ProducerOS Sync Engine - Time-stretching and pitch-shifting for tempo sync."""
 
 import os
 import hashlib
@@ -26,7 +26,7 @@ class SyncManager:
         self._cache: Dict[str, str] = {}  # hash -> temp file path
         self._cache_timestamps: Dict[str, float] = {}  # hash -> creation time
         self._cache_max_age = 24 * 60 * 60  # 24 hours in seconds
-        self._temp_dir = Path(tempfile.gettempdir()) / "beatflow_sync"
+        self._temp_dir = Path(tempfile.gettempdir()) / "produceros_sync"
         self._temp_dir.mkdir(exist_ok=True)
         self._cleanup_old_cache()
 

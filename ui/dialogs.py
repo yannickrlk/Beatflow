@@ -1,11 +1,13 @@
-"""Dialog components for Beatflow."""
+"""Dialog components for ProducerOS."""
 
 import os
 import re
 import threading
+import webbrowser
 import customtkinter as ctk
 from typing import Dict, Callable, Optional, List
 from ui.theme import COLORS, SPACING
+from core.version import get_about_info, VERSION, APP_NAME
 
 # Shell integration (Windows only)
 try:
@@ -534,7 +536,7 @@ class AddToCollectionDialog(ctk.CTkToplevel):
 
 
 class SettingsDialog(ctk.CTkToplevel):
-    """Settings dialog for Beatflow."""
+    """Settings dialog for ProducerOS."""
 
     def __init__(self, parent, config_manager):
         super().__init__(parent)
@@ -604,7 +606,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         shortcuts_desc = ctk.CTkLabel(
             settings_frame,
-            text="Global shortcuts work even when Beatflow is in the background",
+            text="Global shortcuts work even when ProducerOS is in the background",
             font=ctk.CTkFont(size=11),
             text_color=COLORS['fg_dim']
         )
@@ -669,7 +671,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         shell_desc = ctk.CTkLabel(
             settings_frame,
-            text="Add 'Add to Beatflow' to folder right-click menu",
+            text="Add 'Add to ProducerOS' to folder right-click menu",
             font=ctk.CTkFont(size=11),
             text_color=COLORS['fg_dim']
         )
@@ -689,6 +691,8 @@ class SettingsDialog(ctk.CTkToplevel):
         separator2.pack(fill="x", padx=SPACING['md'], pady=SPACING['md'])
 
         # ===== App Info Section =====
+        about_info = get_about_info()
+
         info_label = ctk.CTkLabel(
             settings_frame,
             text="About",
@@ -699,19 +703,65 @@ class SettingsDialog(ctk.CTkToplevel):
 
         version_label = ctk.CTkLabel(
             settings_frame,
-            text="Beatflow v1.0 - Sample Browser for Producers",
+            text=f"{about_info['name']} v{about_info['version']} - {about_info['description']}",
             font=ctk.CTkFont(size=12),
             text_color=COLORS['fg_secondary']
         )
         version_label.pack(anchor="w", padx=SPACING['md'])
 
-        tech_label = ctk.CTkLabel(
+        copyright_label = ctk.CTkLabel(
             settings_frame,
-            text="Python + CustomTkinter + Pygame",
+            text=about_info['copyright'],
             font=ctk.CTkFont(size=11),
             text_color=COLORS['fg_dim']
         )
-        tech_label.pack(anchor="w", padx=SPACING['md'], pady=(2, SPACING['md']))
+        copyright_label.pack(anchor="w", padx=SPACING['md'], pady=(2, 0))
+
+        # Links frame
+        links_frame = ctk.CTkFrame(settings_frame, fg_color="transparent")
+        links_frame.pack(anchor="w", padx=SPACING['md'], pady=(SPACING['sm'], SPACING['md']))
+
+        website_btn = ctk.CTkButton(
+            links_frame,
+            text="Website",
+            font=ctk.CTkFont(size=11),
+            fg_color="transparent",
+            hover_color=COLORS['bg_hover'],
+            text_color=COLORS['accent'],
+            height=24,
+            width=70,
+            corner_radius=4,
+            command=lambda: webbrowser.open(about_info['website'])
+        )
+        website_btn.pack(side="left", padx=(0, SPACING['xs']))
+
+        github_btn = ctk.CTkButton(
+            links_frame,
+            text="GitHub",
+            font=ctk.CTkFont(size=11),
+            fg_color="transparent",
+            hover_color=COLORS['bg_hover'],
+            text_color=COLORS['accent'],
+            height=24,
+            width=70,
+            corner_radius=4,
+            command=lambda: webbrowser.open(about_info['github'])
+        )
+        github_btn.pack(side="left", padx=(0, SPACING['xs']))
+
+        support_btn = ctk.CTkButton(
+            links_frame,
+            text="Support",
+            font=ctk.CTkFont(size=11),
+            fg_color="transparent",
+            hover_color=COLORS['bg_hover'],
+            text_color=COLORS['accent'],
+            height=24,
+            width=70,
+            corner_radius=4,
+            command=lambda: webbrowser.open(f"mailto:{about_info['support_email']}")
+        )
+        support_btn.pack(side="left")
 
         # Close button
         close_btn = ctk.CTkButton(

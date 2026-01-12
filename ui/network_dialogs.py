@@ -1,19 +1,22 @@
-"""Client dialogs for Beatflow - Add/Edit client dialogs."""
+"""Network dialogs for ProducerOS - Add/Edit contact dialogs."""
 
 import customtkinter as ctk
 from ui.theme import COLORS, SPACING
 
+# Available role options for contacts
+ROLE_OPTIONS = ['Producer', 'Artist']
+
 
 class AddClientDialog(ctk.CTkToplevel):
-    """Dialog for adding a new client."""
+    """Dialog for adding a new contact."""
 
     def __init__(self, parent, on_save=None, **kwargs):
         super().__init__(parent, **kwargs)
 
         self.on_save = on_save
 
-        self.title("Add Client")
-        self.geometry("450x500")
+        self.title("Add Contact")
+        self.geometry("450x540")  # Taller to accommodate role field
         self.resizable(False, False)
         self.configure(fg_color=COLORS['bg_main'])
 
@@ -24,7 +27,7 @@ class AddClientDialog(ctk.CTkToplevel):
         # Center on parent
         self.update_idletasks()
         x = parent.winfo_x() + (parent.winfo_width() - 450) // 2
-        y = parent.winfo_y() + (parent.winfo_height() - 500) // 2
+        y = parent.winfo_y() + (parent.winfo_height() - 540) // 2
         self.geometry(f"+{x}+{y}")
 
         self._build_ui()
@@ -37,7 +40,7 @@ class AddClientDialog(ctk.CTkToplevel):
         # Header
         header = ctk.CTkLabel(
             self,
-            text="Add New Client",
+            text="Add New Contact",
             font=ctk.CTkFont(family="Inter", size=20, weight="bold"),
             text_color=COLORS['fg']
         )
@@ -54,6 +57,32 @@ class AddClientDialog(ctk.CTkToplevel):
 
         # Name field (required)
         self._create_field(form, "Name *", "name")
+
+        # Role dropdown
+        role_label = ctk.CTkLabel(
+            form,
+            text="Role",
+            font=ctk.CTkFont(family="Inter", size=12),
+            text_color=COLORS['fg_secondary'],
+            anchor="w"
+        )
+        role_label.pack(fill="x", pady=(SPACING['sm'], SPACING['xs']))
+
+        self.role_var = ctk.StringVar(value="Producer")
+        self.role_dropdown = ctk.CTkOptionMenu(
+            form,
+            variable=self.role_var,
+            values=ROLE_OPTIONS,
+            font=ctk.CTkFont(family="Inter", size=13),
+            fg_color=COLORS['bg_input'],
+            button_color=COLORS['bg_hover'],
+            button_hover_color=COLORS['accent'],
+            dropdown_fg_color=COLORS['bg_card'],
+            dropdown_hover_color=COLORS['bg_hover'],
+            height=40,
+            corner_radius=8
+        )
+        self.role_dropdown.pack(fill="x")
 
         # Email field
         self._create_field(form, "Email", "email")
@@ -111,7 +140,7 @@ class AddClientDialog(ctk.CTkToplevel):
 
         save_btn = ctk.CTkButton(
             btn_frame,
-            text="Add Client",
+            text="Add Contact",
             font=ctk.CTkFont(family="Inter", size=13, weight="bold"),
             fg_color=COLORS['accent'],
             hover_color=COLORS['accent_hover'],
@@ -157,9 +186,10 @@ class AddClientDialog(ctk.CTkToplevel):
             self.name_entry.configure(border_color=COLORS['error'])
             return
 
-        # Collect all data
+        # Collect all data including role
         data = {
             'name': name,
+            'role': self.role_var.get(),
             'email': self.email_entry.get().strip(),
             'phone': self.phone_entry.get().strip(),
             'instagram': self.instagram_entry.get().strip(),
@@ -176,7 +206,7 @@ class AddClientDialog(ctk.CTkToplevel):
 
 
 class EditClientDialog(ctk.CTkToplevel):
-    """Dialog for editing an existing client."""
+    """Dialog for editing an existing contact."""
 
     def __init__(self, parent, client: dict, on_save=None, on_delete=None, **kwargs):
         super().__init__(parent, **kwargs)
@@ -185,8 +215,8 @@ class EditClientDialog(ctk.CTkToplevel):
         self.on_save = on_save
         self.on_delete = on_delete
 
-        self.title("Edit Client")
-        self.geometry("450x520")
+        self.title("Edit Contact")
+        self.geometry("450x560")  # Taller to accommodate role field
         self.resizable(False, False)
         self.configure(fg_color=COLORS['bg_main'])
 
@@ -197,7 +227,7 @@ class EditClientDialog(ctk.CTkToplevel):
         # Center on parent
         self.update_idletasks()
         x = parent.winfo_x() + (parent.winfo_width() - 450) // 2
-        y = parent.winfo_y() + (parent.winfo_height() - 520) // 2
+        y = parent.winfo_y() + (parent.winfo_height() - 560) // 2
         self.geometry(f"+{x}+{y}")
 
         self._build_ui()
@@ -207,7 +237,7 @@ class EditClientDialog(ctk.CTkToplevel):
         # Header
         header = ctk.CTkLabel(
             self,
-            text="Edit Client",
+            text="Edit Contact",
             font=ctk.CTkFont(family="Inter", size=20, weight="bold"),
             text_color=COLORS['fg']
         )
@@ -224,6 +254,33 @@ class EditClientDialog(ctk.CTkToplevel):
 
         # Name field (required)
         self._create_field(form, "Name *", "name", self.client.get('name', ''))
+
+        # Role dropdown
+        role_label = ctk.CTkLabel(
+            form,
+            text="Role",
+            font=ctk.CTkFont(family="Inter", size=12),
+            text_color=COLORS['fg_secondary'],
+            anchor="w"
+        )
+        role_label.pack(fill="x", pady=(SPACING['sm'], SPACING['xs']))
+
+        current_role = self.client.get('role', 'Producer')
+        self.role_var = ctk.StringVar(value=current_role)
+        self.role_dropdown = ctk.CTkOptionMenu(
+            form,
+            variable=self.role_var,
+            values=ROLE_OPTIONS,
+            font=ctk.CTkFont(family="Inter", size=13),
+            fg_color=COLORS['bg_input'],
+            button_color=COLORS['bg_hover'],
+            button_hover_color=COLORS['accent'],
+            dropdown_fg_color=COLORS['bg_card'],
+            dropdown_hover_color=COLORS['bg_hover'],
+            height=40,
+            corner_radius=8
+        )
+        self.role_dropdown.pack(fill="x")
 
         # Email field
         self._create_field(form, "Email", "email", self.client.get('email', ''))
@@ -267,7 +324,7 @@ class EditClientDialog(ctk.CTkToplevel):
         # Delete button inside form
         delete_btn = ctk.CTkButton(
             form,
-            text="Delete Client",
+            text="Delete Contact",
             font=ctk.CTkFont(family="Inter", size=12),
             fg_color="transparent",
             hover_color=COLORS['error'],
@@ -347,9 +404,10 @@ class EditClientDialog(ctk.CTkToplevel):
             self.name_entry.configure(border_color=COLORS['error'])
             return
 
-        # Collect all data
+        # Collect all data including role
         data = {
             'name': name,
+            'role': self.role_var.get(),
             'email': self.email_entry.get().strip(),
             'phone': self.phone_entry.get().strip(),
             'instagram': self.instagram_entry.get().strip(),
@@ -365,7 +423,7 @@ class EditClientDialog(ctk.CTkToplevel):
         self.destroy()
 
     def _on_delete(self):
-        """Handle delete button click."""
+        """Handle delete contact button click."""
         if self.on_delete:
             self.on_delete(self.client['id'])
         self.destroy()

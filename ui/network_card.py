@@ -1,12 +1,62 @@
-"""Client Card component for Beatflow - Premium card display for clients."""
+"""Network Card component for ProducerOS - Premium card display for contacts."""
 
+import os
 import customtkinter as ctk
+from PIL import Image
 from ui.theme import COLORS, SPACING
 from core.client_manager import ClientManager
 
+# Role color mapping for badges
+ROLE_COLORS = {
+    'Producer': '#8B5CF6',    # Purple
+    'Artist': '#EC4899',      # Pink
+}
+
+# Load Instagram logo - invert to white on transparent for dark UI
+_INSTAGRAM_LOGO = None
+def _get_instagram_logo():
+    global _INSTAGRAM_LOGO
+    if _INSTAGRAM_LOGO is None:
+        logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'IMAGE', 'instagram_logo.jpg')
+        if os.path.exists(logo_path):
+            img = Image.open(logo_path).convert('RGBA')
+            data = img.getdata()
+            new_data = []
+            for pixel in data:
+                # Black/dark pixels -> white, white/light pixels -> transparent
+                brightness = (pixel[0] + pixel[1] + pixel[2]) / 3
+                if brightness > 200:  # Light/white -> transparent
+                    new_data.append((0, 0, 0, 0))
+                else:  # Dark/black -> white
+                    new_data.append((255, 255, 255, 255))
+            img.putdata(new_data)
+            _INSTAGRAM_LOGO = ctk.CTkImage(light_image=img, dark_image=img, size=(16, 16))
+    return _INSTAGRAM_LOGO
+
+# Load Twitter/X logo - make black background transparent, keep white X
+_TWITTER_LOGO = None
+def _get_twitter_logo():
+    global _TWITTER_LOGO
+    if _TWITTER_LOGO is None:
+        logo_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'IMAGE', 'twitter_logo.png')
+        if os.path.exists(logo_path):
+            img = Image.open(logo_path).convert('RGBA')
+            data = img.getdata()
+            new_data = []
+            for pixel in data:
+                # Black/dark pixels -> transparent, white/light pixels -> keep white
+                brightness = (pixel[0] + pixel[1] + pixel[2]) / 3
+                if brightness < 50:  # Dark/black -> transparent
+                    new_data.append((0, 0, 0, 0))
+                else:  # Light/white -> keep white
+                    new_data.append((255, 255, 255, 255))
+            img.putdata(new_data)
+            _TWITTER_LOGO = ctk.CTkImage(light_image=img, dark_image=img, size=(16, 16))
+    return _TWITTER_LOGO
+
 
 class ClientCard(ctk.CTkFrame):
-    """A premium card displaying client information with social links."""
+    """A premium card displaying contact information with social links and role badge."""
 
     def __init__(self, parent, client: dict, on_click=None, on_edit=None, on_delete=None, **kwargs):
         super().__init__(
@@ -32,15 +82,34 @@ class ClientCard(ctk.CTkFrame):
         content = ctk.CTkFrame(self, fg_color="transparent")
         content.pack(fill="both", expand=True, padx=SPACING['md'], pady=SPACING['md'])
 
+        # Header row with name and role badge
+        header_frame = ctk.CTkFrame(content, fg_color="transparent")
+        header_frame.pack(fill="x", pady=(0, SPACING['sm']))
+
         # Name (large, bold)
         name_label = ctk.CTkLabel(
-            content,
+            header_frame,
             text=self.client.get('name', 'Unknown'),
             font=ctk.CTkFont(family="Inter", size=16, weight="bold"),
             text_color=COLORS['fg'],
             anchor="w"
         )
-        name_label.pack(fill="x", pady=(0, SPACING['sm']))
+        name_label.pack(side="left")
+
+        # Role badge
+        role = self.client.get('role', 'Producer')
+        role_color = ROLE_COLORS.get(role, ROLE_COLORS['Producer'])
+        role_badge = ctk.CTkLabel(
+            header_frame,
+            text=role,
+            font=ctk.CTkFont(family="Inter", size=10, weight="bold"),
+            text_color="#ffffff",
+            fg_color=role_color,
+            corner_radius=4,
+            padx=6,
+            pady=2
+        )
+        role_badge.pack(side="right")
 
         # Contact info section
         contact_frame = ctk.CTkFrame(content, fg_color="transparent")
@@ -58,14 +127,16 @@ class ClientCard(ctk.CTkFrame):
         socials_frame = ctk.CTkFrame(content, fg_color="transparent")
         socials_frame.pack(fill="x", pady=(SPACING['xs'], 0))
 
-        # Instagram button (stylized lens icon)
+        # Instagram button with real logo
         if self.client.get('instagram'):
+            ig_logo = _get_instagram_logo()
             ig_btn = ctk.CTkButton(
                 socials_frame,
-                text="\u25CE",  # Bullseye - represents camera lens
+                text="" if ig_logo else "\u25CE",
+                image=ig_logo,
                 font=ctk.CTkFont(size=16),
                 fg_color=COLORS['bg_hover'],
-                hover_color="#E1306C",  # Instagram gradient pink
+                hover_color="#E1306C",
                 width=32,
                 height=28,
                 corner_radius=6,
@@ -74,11 +145,13 @@ class ClientCard(ctk.CTkFrame):
             )
             ig_btn.pack(side="left", padx=(0, SPACING['xs']))
 
-        # Twitter/X button
+        # Twitter/X button with real logo
         if self.client.get('twitter'):
+            tw_logo = _get_twitter_logo()
             tw_btn = ctk.CTkButton(
                 socials_frame,
-                text="\u2573",  # Box drawings X
+                text="" if tw_logo else "\u2573",
+                image=tw_logo,
                 font=ctk.CTkFont(size=14, weight="bold"),
                 fg_color=COLORS['bg_hover'],
                 hover_color="#000000",  # X black
@@ -181,7 +254,7 @@ class ClientCard(ctk.CTkFrame):
 
 
 class ClientListRow(ctk.CTkFrame):
-    """A row for list view display of a client."""
+    """A row for list view display of a contact with role badge."""
 
     def __init__(self, parent, client: dict, on_edit=None, on_delete=None, **kwargs):
         super().__init__(
@@ -209,9 +282,25 @@ class ClientListRow(ctk.CTkFrame):
             font=ctk.CTkFont(family="Inter", size=13, weight="bold"),
             text_color=COLORS['fg'],
             anchor="w",
-            width=180
+            width=140
         )
         name_label.pack(side="left", padx=SPACING['md'], pady=SPACING['sm'])
+
+        # Role badge (compact)
+        role = self.client.get('role', 'Producer')
+        role_color = ROLE_COLORS.get(role, ROLE_COLORS['Producer'])
+        role_badge = ctk.CTkLabel(
+            self,
+            text=role,
+            font=ctk.CTkFont(family="Inter", size=9, weight="bold"),
+            text_color="#ffffff",
+            fg_color=role_color,
+            corner_radius=3,
+            padx=4,
+            pady=1,
+            width=60
+        )
+        role_badge.pack(side="left", padx=(0, SPACING['sm']))
 
         # Email column
         email_label = ctk.CTkLabel(
@@ -239,11 +328,13 @@ class ClientListRow(ctk.CTkFrame):
         socials_frame = ctk.CTkFrame(self, fg_color="transparent")
         socials_frame.pack(side="right", padx=SPACING['md'])
 
-        # Instagram
+        # Instagram with real logo
         if self.client.get('instagram'):
+            ig_logo = _get_instagram_logo()
             ig_btn = ctk.CTkButton(
                 socials_frame,
-                text="\u25CE",  # Bullseye - represents camera lens
+                text="" if ig_logo else "\u25CE",
+                image=ig_logo,
                 font=ctk.CTkFont(size=14),
                 fg_color=COLORS['bg_hover'],
                 hover_color="#E1306C",
@@ -255,11 +346,13 @@ class ClientListRow(ctk.CTkFrame):
             )
             ig_btn.pack(side="left", padx=2)
 
-        # Twitter
+        # Twitter with real logo
         if self.client.get('twitter'):
+            tw_logo = _get_twitter_logo()
             tw_btn = ctk.CTkButton(
                 socials_frame,
-                text="\u2573",  # Box drawings X
+                text="" if tw_logo else "\u2573",
+                image=tw_logo,
                 font=ctk.CTkFont(size=12, weight="bold"),
                 fg_color=COLORS['bg_hover'],
                 hover_color="#000000",

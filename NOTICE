@@ -1,0 +1,129 @@
+THIRD-PARTY SOFTWARE NOTICES AND ATTRIBUTIONS
+
+ProducerOS includes the following third-party software components:
+
+================================================================================
+GUI FRAMEWORK
+================================================================================
+
+CustomTkinter
+License: MIT
+Copyright (c) 2023 Tom Schimansky
+https://github.com/TomSchimansky/CustomTkinter
+
+TkinterDnD2
+License: MIT
+https://github.com/pmgagne/tkinterdnd2
+
+================================================================================
+AUDIO PROCESSING
+================================================================================
+
+Pygame
+License: LGPL
+Copyright (c) 2000-2023 Pygame Community
+https://www.pygame.org
+
+PyDub
+License: MIT
+Copyright (c) 2011 James Robert
+https://github.com/jiaaro/pydub
+
+Mutagen
+License: GPL-2.0
+Copyright (c) 2005-2023 Mutagen Contributors
+https://github.com/quodlibet/mutagen
+
+TinyTag
+License: MIT
+Copyright (c) 2014-2023 Tom Wallroth
+https://github.com/devsnd/tinytag
+
+AudioStretchy
+License: MIT
+https://github.com/twardoch/audiostretchy
+
+Librosa
+License: ISC
+Copyright (c) 2013-2023 Brian McFee
+https://github.com/librosa/librosa
+
+================================================================================
+SCIENTIFIC COMPUTING
+================================================================================
+
+NumPy
+License: BSD-3-Clause
+Copyright (c) 2005-2023 NumPy Developers
+https://numpy.org
+
+SciPy
+License: BSD-3-Clause
+Copyright (c) 2001-2023 SciPy Developers
+https://scipy.org
+
+Numba
+License: BSD-2-Clause
+Copyright (c) 2012-2023 Anaconda, Inc.
+https://numba.pydata.org
+
+================================================================================
+VISUALIZATION
+================================================================================
+
+Matplotlib
+License: PSF-based
+Copyright (c) 2002-2023 Matplotlib Development Team
+https://matplotlib.org
+
+Pillow (PIL Fork)
+License: HPND
+Copyright (c) 1997-2023 Jeffrey A. Clark and contributors
+https://python-pillow.org
+
+================================================================================
+CALENDAR & TIME
+================================================================================
+
+iCalendar
+License: BSD-2-Clause
+Copyright (c) 2012-2023 Plone Foundation
+https://github.com/collective/icalendar
+
+pytz
+License: MIT
+Copyright (c) 2003-2023 Stuart Bishop
+https://pythonhosted.org/pytz
+
+================================================================================
+INPUT HANDLING
+================================================================================
+
+pynput
+License: LGPL-3.0
+Copyright (c) 2015-2023 Moses Palmier
+https://github.com/moses-palmer/pynput
+
+================================================================================
+MEDIA
+================================================================================
+
+imageio-ffmpeg
+License: BSD-2-Clause
+Copyright (c) 2019-2023 imageio contributors
+https://github.com/imageio/imageio-ffmpeg
+
+FFmpeg (bundled via imageio-ffmpeg)
+License: LGPL-2.1 / GPL-2.0
+Copyright (c) 2000-2023 FFmpeg developers
+https://ffmpeg.org
+
+================================================================================
+
+This software is provided by the copyright holders and contributors "as is"
+and any express or implied warranties, including, but not limited to, the
+implied warranties of merchantability and fitness for a particular purpose
+are disclaimed.
+
+For complete license texts, please refer to each project's repository or
+documentation.

@@ -1,4 +1,4 @@
-"""Beatflow Lab Drawer - Interactive waveform editor with trim, fade, and normalize."""
+"""ProducerOS Lab Drawer - Interactive waveform editor with trim, fade, and normalize."""
 
 import os
 import tkinter as tk
@@ -76,7 +76,7 @@ class LabDrawer(ctk.CTkFrame):
 
         title = ctk.CTkLabel(
             header,
-            text="BEATFLOW LAB",
+            text="PRODUCEROS LAB",
             font=ctk.CTkFont(family="Inter", size=11, weight="bold"),
             text_color=COLORS['accent']
         )

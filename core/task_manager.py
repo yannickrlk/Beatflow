@@ -1,4 +1,4 @@
-"""Task Manager for Beatflow - Daily todos and project management."""
+"""Task Manager for ProducerOS - Daily todos and project management."""
 
 import os
 import json
@@ -522,7 +522,7 @@ class TaskManager:
 
     def link_task_to_entity(self, task_id: int, entity_type: str, entity_id: str, is_daily: bool = True) -> bool:
         """
-        Link a task to a Beatflow entity (sample, folder, collection).
+        Link a task to a ProducerOS entity (sample, folder, collection).
 
         Args:
             task_id: The task's ID.
@@ -1077,9 +1077,9 @@ class TaskManager:
             return False
 
         cal = Calendar()
-        cal.add('prodid', '-//Beatflow Studio Flow//beatflow.app//')
+        cal.add('prodid', '-//ProducerOS Studio Flow//produceros.app//')
         cal.add('version', '2.0')
-        cal.add('x-wr-calname', 'Beatflow Tasks')
+        cal.add('x-wr-calname', 'ProducerOS Tasks')
 
         # Add daily tasks
         if include_daily:
@@ -1087,7 +1087,7 @@ class TaskManager:
             for task in tasks:
                 event = Event()
                 event.add('summary', task['title'])
-                event.add('uid', f"beatflow-daily-{task['id']}@beatflow.app")
+                event.add('uid', f"produceros-daily-{task['id']}@produceros.app")
 
                 if task.get('scheduled_date'):
                     try:
@@ -1114,7 +1114,7 @@ class TaskManager:
                 for task in tasks:
                     event = Event()
                     event.add('summary', f"[{project['title']}] {task['title']}")
-                    event.add('uid', f"beatflow-project-{task['id']}@beatflow.app")
+                    event.add('uid', f"produceros-project-{task['id']}@produceros.app")
 
                     if task.get('due_date'):
                         try:

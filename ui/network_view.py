@@ -1,14 +1,14 @@
-"""Clients View for Beatflow - CRM interface for managing clients."""
+"""Network View for ProducerOS - Interface for managing contacts and collaborators."""
 
 import customtkinter as ctk
 from ui.theme import COLORS, SPACING
-from ui.client_card import ClientCard, ClientListRow
-from ui.client_dialogs import AddClientDialog, EditClientDialog
+from ui.network_card import ClientCard, ClientListRow
+from ui.network_dialogs import AddClientDialog, EditClientDialog
 from core.client_manager import get_client_manager
 
 
 class ClientsView(ctk.CTkFrame):
-    """Main view for the Client Manager feature."""
+    """Main view for the Network feature - managing contacts and collaborators."""
 
     CARD_MIN_WIDTH = 280  # Minimum card width for responsive grid
     CARD_HEIGHT = 180     # Fixed card height
@@ -45,7 +45,7 @@ class ClientsView(ctk.CTkFrame):
         search_entry = ctk.CTkEntry(
             search_frame,
             textvariable=self.search_var,
-            placeholder_text="Search clients...",
+            placeholder_text="Search contacts...",
             width=280,
             height=40,
             font=ctk.CTkFont(family="Inter", size=13),
@@ -77,7 +77,26 @@ class ClientsView(ctk.CTkFrame):
         self.view_toggle.set("Card")
         self.view_toggle.pack(side="left", padx=(SPACING['sm'], 0), pady=SPACING['sm'])
 
-        # Client count label
+        # Role filter dropdown
+        self.role_filter_var = ctk.StringVar(value="All")
+        self.role_filter = ctk.CTkOptionMenu(
+            search_frame,
+            variable=self.role_filter_var,
+            values=["All", "Producer", "Artist"],
+            font=ctk.CTkFont(family="Inter", size=11),
+            fg_color=COLORS['bg_hover'],
+            button_color=COLORS['bg_card'],
+            button_hover_color=COLORS['accent'],
+            dropdown_fg_color=COLORS['bg_card'],
+            dropdown_hover_color=COLORS['bg_hover'],
+            width=100,
+            height=32,
+            corner_radius=4,
+            command=self._on_role_filter_change
+        )
+        self.role_filter.pack(side="left", padx=(SPACING['sm'], 0), pady=SPACING['sm'])
+
+        # Contact count label
         self.count_label = ctk.CTkLabel(
             self.topbar,
             text="",
@@ -86,10 +105,10 @@ class ClientsView(ctk.CTkFrame):
         )
         self.count_label.pack(side="right", padx=(0, SPACING['md']))
 
-        # Add Client button (right side) - same placement as "+ Add Folder"
+        # Add Contact button (right side) - same placement as "+ Add Folder"
         self.add_btn = ctk.CTkButton(
             self.topbar,
-            text="+ Add Client",
+            text="+ Add Contact",
             font=ctk.CTkFont(family="Inter", size=12),
             fg_color=COLORS['accent'],
             hover_color=COLORS['accent_hover'],
@@ -178,7 +197,7 @@ class ClientsView(ctk.CTkFrame):
 
         empty_msg = ctk.CTkLabel(
             self.empty_frame,
-            text="No Clients Yet",
+            text="No Contacts Yet",
             font=ctk.CTkFont(family="Inter", size=18, weight="bold"),
             text_color=COLORS['fg']
         )
@@ -186,7 +205,7 @@ class ClientsView(ctk.CTkFrame):
 
         empty_submsg = ctk.CTkLabel(
             self.empty_frame,
-            text="Add your first client to start tracking\nyour network and contacts.",
+            text="Add your first contact to start building\nyour producer network.",
             font=ctk.CTkFont(family="Inter", size=13),
             text_color=COLORS['fg_secondary'],
             justify="center"
@@ -195,7 +214,7 @@ class ClientsView(ctk.CTkFrame):
 
         empty_add_btn = ctk.CTkButton(
             self.empty_frame,
-            text="+ Add Client",
+            text="+ Add Contact",
             font=ctk.CTkFont(family="Inter", size=14, weight="bold"),
             fg_color=COLORS['accent'],
             hover_color=COLORS['accent_hover'],
@@ -212,9 +231,14 @@ class ClientsView(ctk.CTkFrame):
         search_query = self.search_var.get().strip() if hasattr(self, 'search_var') else None
         self.clients = self.client_manager.get_clients(search=search_query if search_query else None)
 
+        # Apply role filter
+        role_filter = self.role_filter_var.get() if hasattr(self, 'role_filter_var') else "All"
+        if role_filter != "All":
+            self.clients = [c for c in self.clients if c.get('role', 'Producer') == role_filter]
+
         # Update count
         count = len(self.clients)
-        self.count_label.configure(text=f"{count} client{'s' if count != 1 else ''}")
+        self.count_label.configure(text=f"{count} contact{'s' if count != 1 else ''}")
 
         # Show appropriate view
         if not self.clients:
@@ -304,6 +328,10 @@ class ClientsView(ctk.CTkFrame):
         """Handle search text change."""
         self.refresh()
 
+    def _on_role_filter_change(self, value):
+        """Handle role filter change."""
+        self.refresh()
+
     def _on_resize(self, event):
         """Handle window resize for responsive grid."""
         if self.current_view == "card" and self.clients:
@@ -313,7 +341,7 @@ class ClientsView(ctk.CTkFrame):
             self._resize_after_id = self.after(100, self._show_card_view)
 
     def _on_add_client(self):
-        """Handle Add Client button click."""
+        """Handle Add Contact button click."""
         def on_save(data):
             self.client_manager.add_client(data)
             self.refresh()
@@ -321,7 +349,7 @@ class ClientsView(ctk.CTkFrame):
         AddClientDialog(self.winfo_toplevel(), on_save=on_save)
 
     def _on_edit_client(self, client):
-        """Handle edit client request."""
+        """Handle edit contact request."""
         def on_save(client_id, data):
             self.client_manager.update_client(client_id, data)
             self.refresh()

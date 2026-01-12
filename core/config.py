@@ -1,4 +1,4 @@
-"""Configuration management for Beatflow."""
+"""Configuration management for ProducerOS."""
 
 import os
 import json
@@ -23,10 +23,10 @@ class ConfigManager:
             config_path: Path to the config file. If None, uses default location.
         """
         if config_path is None:
-            # Default to beatflow_config.json in the project root
+            # Default to produceros_config.json in the project root
             config_path = os.path.join(
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                'beatflow_config.json'
+                'produceros_config.json'
             )
         self.config_path = config_path
         self._config = None

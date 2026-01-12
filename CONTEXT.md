@@ -1,5 +1,5 @@
-# Beatflow Project Context
-> Last updated: 2026-01-12 (Phase 21.2 Complete - Studio Flow Advanced Features)
+# ProducerOS Project Context
+> Last updated: 2026-01-12 (Phase 23 Complete - Rebranding Beatflow → ProducerOS)
 > For collaboration between Claude (implementation) and Gemini (brainstorming)
 
 ---
@@ -14,11 +14,20 @@
 
 ## 1. Project Overview
 
-**Beatflow** is a desktop sample browser for beatmakers/music producers. Think of it like a file explorer specifically designed for audio samples with:
-- Quick preview playback
+**ProducerOS** (formerly Beatflow) is a desktop sample browser and productivity suite for beatmakers/music producers. Think of it as the "operating system" for your creative workflow:
+- Quick preview playback with tempo sync
 - Metadata extraction (BPM, Key, Tags)
 - Real waveform visualization
-- Visual organization
+- Visual organization with collections
+- Task management (Studio Flow)
+- Network/contacts management
+- Non-destructive audio editing (Lab)
+
+**Brand Info:**
+- **Name**: ProducerOS
+- **Tagline**: "Your Creative Command Center"
+- **Website**: https://produceros.app
+- **Support**: support@produceros.app
 
 **Tech Stack:**
 - **Python 3.12** (required - 3.14 crashes with librosa/numba)
@@ -26,6 +35,7 @@
 - Pygame (audio playback)
 - NumPy + Pillow (waveform generation)
 - Pydub + imageio-ffmpeg (MP3/FLAC/OGG support with bundled ffmpeg)
+- SQLite (metadata caching + task storage)
 - JSON (config persistence)
 
 ---
@@ -33,14 +43,16 @@
 ## 2. Current File Structure
 
 ```
-Beatflow/
+ProducerOS/
 ├── main.py                 # Entry point
-├── beatflow_config.json    # Persisted root folders
+├── produceros_config.json  # Persisted root folders & settings
+├── produceros.db           # SQLite database (auto-generated)
 ├── requirements.txt        # Dependencies
 ├── .waveform_cache/        # Cached waveform images (auto-generated)
 │
 ├── core/
 │   ├── __init__.py
+│   ├── version.py          # Version info (v1.0.0)
 │   ├── config.py           # ConfigManager - handles JSON save/load
 │   ├── database.py         # DatabaseManager - SQLite caching for metadata
 │   ├── scanner.py          # LibraryScanner - file scanning & metadata
@@ -51,29 +63,40 @@ Beatflow/
 │   ├── lab.py              # LabManager - non-destructive audio processing
 │   ├── sync.py             # SyncManager - time-stretch/pitch-shift for tempo sync
 │   ├── exporter.py         # Exporter - ZIP bundling & kit generation
-│   ├── client_manager.py   # ClientManager - CRM CRUD operations
-│   └── task_manager.py     # TaskManager - Daily tasks & project management
+│   ├── client_manager.py   # ClientManager - Network contacts CRUD
+│   ├── task_manager.py     # TaskManager - Daily tasks & project management
+│   ├── shell_integration.py # Windows shell "Add to ProducerOS" context menu
+│   └── metadata_architect.py # Rule engine, regex renamer, duplicate finder
 │
-└── ui/
-    ├── __init__.py
-    ├── theme.py            # COLORS dict, shared styling constants
-    ├── app.py              # BeatflowApp - main window, layout
-    ├── sidebar.py          # Sidebar - navigation (Browse + Settings)
-    ├── player.py           # FooterPlayer - Global playback controls
-    ├── dialogs.py          # MetadataEditDialog + ExportDialog logic
-    ├── tree_view.py        # LibraryTreeView - folder tree, collections UI
-    ├── library.py          # SampleList + SampleRow - sample display
-    ├── lab_drawer.py       # LabDrawer - interactive waveform editor UI
-    ├── network_view.py     # ClientsView - Network interface for managing contacts
-    ├── network_card.py     # ClientCard & ClientListRow - contact display with role badges
-    ├── network_dialogs.py  # AddClientDialog & EditClientDialog - contact forms with role dropdown
-    ├── tasks_view.py       # TasksView - Main container for Studio Flow (4-tab layout)
-    ├── today_view.py       # TodayView - Daily quick todos list with Focus Mode
-    ├── projects_view.py    # ProjectsView - Project management with Kanban board
-    ├── focus_mode.py       # FocusModeWindow - Pomodoro timer for deep work
-    ├── productivity_dashboard.py  # ProductivityDashboard - Charts and insights
-    ├── calendar_view.py    # CalendarView - Month calendar with .ics export
-    └── task_dialogs.py     # Task dialogs for adding/editing tasks and projects
+├── ui/
+│   ├── __init__.py
+│   ├── theme.py            # COLORS dict, shared styling constants
+│   ├── app.py              # ProducerOSApp - main window, layout
+│   ├── sidebar.py          # Sidebar - navigation (Browse, Network, Studio Flow)
+│   ├── player.py           # FooterPlayer - Global playback controls + Sync
+│   ├── dialogs.py          # MetadataEditDialog + Settings + MetadataArchitect
+│   ├── tree_view.py        # LibraryTreeView - folder tree, collections UI
+│   ├── library.py          # SampleList + SampleRow - sample display
+│   ├── lab_drawer.py       # LabDrawer - interactive waveform editor UI
+│   ├── network_view.py     # NetworkView - contacts/collaborators interface
+│   ├── network_card.py     # ClientCard & ClientListRow - contact display
+│   ├── network_dialogs.py  # AddClientDialog & EditClientDialog
+│   ├── tasks_view.py       # TasksView - Studio Flow (4-tab layout)
+│   ├── today_view.py       # TodayView - Daily quick todos + Focus Mode
+│   ├── projects_view.py    # ProjectsView - Project management + Kanban
+│   ├── focus_mode.py       # FocusModeWindow - Pomodoro timer
+│   ├── productivity_dashboard.py  # Charts and insights
+│   ├── calendar_view.py    # Month calendar + .ics export
+│   └── task_dialogs.py     # Task/Project add/edit dialogs
+│
+├── legal/
+│   ├── EULA.txt            # End User License Agreement
+│   └── PRIVACY.md          # Privacy Policy (100% local, no data collection)
+│
+├── LICENSE                 # MIT License
+├── NOTICE                  # Third-party attributions
+├── BUSINESS_PLAN.md        # Full commercialization strategy
+└── ProducerOS_installer.iss # Inno Setup installer script
 ```
 
 ---
@@ -82,7 +105,7 @@ Beatflow/
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         BeatflowApp                             │
+│                         ProducerOSApp                           │
 │  ┌──────────┐  ┌─────────────────┐  ┌────────────────────────┐  │
 │  │ Sidebar  │  │ LibraryTreeView │  │      SampleList        │  │
 │  │          │  │                 │  │  ┌──────────────────┐  │  │

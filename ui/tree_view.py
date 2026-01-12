@@ -1,4 +1,4 @@
-"""Library Index / Tree View component for Beatflow."""
+"""Library Index / Tree View component for ProducerOS."""
 
 import os
 import tkinter as tk
@@ -635,6 +635,14 @@ class LibraryTreeView(ctk.CTkFrame):
             command=lambda: self._on_export_collection_click(collection_id, collection_name)
         )
         menu.add_separator()
+
+        # Studio Flow integration
+        menu.add_command(
+            label="Create Project from Collection",
+            command=lambda: self._on_create_project_from_collection(collection_id, collection_name)
+        )
+        menu.add_separator()
+
         menu.add_command(
             label="Delete Collection",
             command=lambda: self._on_delete_collection_click(collection_id)
@@ -655,6 +663,12 @@ class LibraryTreeView(ctk.CTkFrame):
         db = get_database()
         db.delete_collection(collection_id)
         self.refresh()
+
+    def _on_create_project_from_collection(self, collection_id: int, collection_name: str):
+        """Create a Studio Flow project from this collection."""
+        from core.task_manager import get_task_manager
+        task_manager = get_task_manager()
+        task_manager.create_project_from_collection(collection_id, collection_name)
 
     def _on_folder_select(self, path, node):
         """Handle folder selection."""

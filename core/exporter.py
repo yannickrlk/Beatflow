@@ -1,4 +1,4 @@
-"""Exporter module for Beatflow - ZIP bundling and kit generation."""
+"""Exporter module for ProducerOS - ZIP bundling and kit generation."""
 
 import os
 import zipfile

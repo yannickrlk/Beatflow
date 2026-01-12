@@ -395,7 +395,7 @@ class CalendarView(ctk.CTkFrame):
         filename = filedialog.asksaveasfilename(
             defaultextension=".ics",
             filetypes=[("iCalendar", "*.ics")],
-            initialfilename=f"beatflow_tasks_{year}_{month:02d}.ics"
+            initialfilename=f"produceros_tasks_{year}_{month:02d}.ics"
         )
 
         if not filename:

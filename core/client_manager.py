@@ -1,4 +1,4 @@
-"""Client Manager for Beatflow - CRM functionality for music producers."""
+"""Client Manager for ProducerOS - CRM functionality for music producers."""
 
 import webbrowser
 from typing import Dict, List, Optional
@@ -13,10 +13,10 @@ class ClientManager:
 
     def add_client(self, data: Dict) -> int:
         """
-        Add a new client.
+        Add a new client/contact.
 
         Args:
-            data: Dict with client fields (name, email, phone, instagram, twitter, website, notes).
+            data: Dict with client fields (name, email, phone, instagram, twitter, website, notes, role).
 
         Returns:
             The ID of the created client.
@@ -25,8 +25,8 @@ class ClientManager:
         cursor = conn.cursor()
 
         cursor.execute('''
-            INSERT INTO clients (name, email, phone, instagram, twitter, website, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO clients (name, email, phone, instagram, twitter, website, notes, role)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             data.get('name', ''),
             data.get('email', ''),
@@ -34,27 +34,28 @@ class ClientManager:
             data.get('instagram', ''),
             data.get('twitter', ''),
             data.get('website', ''),
-            data.get('notes', '')
+            data.get('notes', ''),
+            data.get('role', 'Producer')
         ))
         conn.commit()
         return cursor.lastrowid
 
     def get_clients(self, sort_by: str = 'name', search: str = None) -> List[Dict]:
         """
-        Get all clients.
+        Get all clients/contacts.
 
         Args:
-            sort_by: Field to sort by ('name', 'created_at').
+            sort_by: Field to sort by ('name', 'created_at', 'role').
             search: Optional search string to filter by name.
 
         Returns:
-            List of client dicts.
+            List of client dicts (includes role field).
         """
         conn = self.db._get_connection()
         cursor = conn.cursor()
 
         # Validate sort field
-        valid_sorts = {'name': 'name', 'created_at': 'created_at', 'id': 'id'}
+        valid_sorts = {'name': 'name', 'created_at': 'created_at', 'id': 'id', 'role': 'role'}
         sort_field = valid_sorts.get(sort_by, 'name')
 
         if search:
@@ -86,11 +87,11 @@ class ClientManager:
 
     def update_client(self, client_id: int, data: Dict) -> bool:
         """
-        Update a client's information.
+        Update a client/contact's information.
 
         Args:
             client_id: The client's ID.
-            data: Dict with fields to update.
+            data: Dict with fields to update (including role).
 
         Returns:
             True if updated, False otherwise.
@@ -99,7 +100,7 @@ class ClientManager:
         cursor = conn.cursor()
 
         # Build update query dynamically
-        fields = ['name', 'email', 'phone', 'instagram', 'twitter', 'website', 'notes']
+        fields = ['name', 'email', 'phone', 'instagram', 'twitter', 'website', 'notes', 'role']
         updates = []
         values = []
 

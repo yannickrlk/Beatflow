@@ -1,4 +1,4 @@
-"""Main application window for Beatflow."""
+"""Main application window for ProducerOS."""
 
 import os
 import customtkinter as ctk
@@ -33,24 +33,24 @@ if TKDND_AVAILABLE:
         """Mixin to add drag & drop methods to CTk."""
         pass
 
-    class BeatflowAppBase(ctk.CTk, _DnDMixin):
+    class ProducerOSAppBase(ctk.CTk, _DnDMixin):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self.TkdndVersion = TkinterDnD._require(self)
 else:
-    class BeatflowAppBase(ctk.CTk):
+    class ProducerOSAppBase(ctk.CTk):
         pass
 
 
-class BeatflowApp(BeatflowAppBase):
-    """Main Beatflow application window."""
+class ProducerOSApp(ProducerOSAppBase):
+    """Main ProducerOS application window."""
 
     def __init__(self, folder_to_add=None):
         super().__init__()
 
         self.folder_to_add = folder_to_add  # CLI argument
 
-        self.title("Beatflow")
+        self.title("ProducerOS")
         self.geometry("1400x850")
         self.minsize(1100, 700)
         self.configure(fg_color=COLORS['bg_main'])
@@ -623,5 +623,5 @@ class BeatflowApp(BeatflowAppBase):
 
 
 if __name__ == "__main__":
-    app = BeatflowApp()
+    app = ProducerOSApp()
     app.mainloop()

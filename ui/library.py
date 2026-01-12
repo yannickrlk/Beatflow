@@ -1,4 +1,4 @@
-"""Sample list component for Beatflow."""
+"""Sample list component for ProducerOS."""
 
 import os
 import subprocess
