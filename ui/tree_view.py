@@ -3,7 +3,7 @@
 import os
 import tkinter as tk
 import customtkinter as ctk
-from ui.theme import COLORS, SPACING
+from ui.theme import COLORS, SPACING, SIZING, FONTS
 from core.scanner import LibraryScanner
 from core.database import get_database
 
@@ -32,13 +32,14 @@ class FolderNode(ctk.CTkFrame):
     def _build_ui(self):
         """Build the folder node UI."""
         folder_name = os.path.basename(self.folder_path)
-        indent = SPACING['md'] * self.level  # 16px per level
+        indent = 20 * self.level  # 20px per level for better hierarchy
 
         # Quick check for subfolders (just check if any exist, don't enumerate all)
-        has_subfolders = self._has_subfolders_fast()
+        self.has_subfolders = self._has_subfolders_fast()
 
-        # Row container - 8px grid
-        row = ctk.CTkFrame(self, fg_color="transparent", height=32)
+        # Row container - BIGGER height for easier clicking
+        row_height = 40 if self.level == 0 else 36  # Root folders bigger
+        row = ctk.CTkFrame(self, fg_color="transparent", height=row_height)
         row.pack(fill="x")
         row.pack_propagate(False)
 
@@ -47,25 +48,20 @@ class FolderNode(ctk.CTkFrame):
             spacer = ctk.CTkFrame(row, fg_color="transparent", width=indent)
             spacer.pack(side="left")
 
-        # Expand/collapse button (if has subfolders)
-        if has_subfolders:
-            self.expand_btn = ctk.CTkButton(
+        # Expand/collapse indicator (visual only, clicking folder toggles)
+        if self.has_subfolders:
+            self.expand_btn = ctk.CTkLabel(
                 row,
                 text="\u25b8",  # Thin right arrow ▸
-                width=SPACING['lg'],  # 24px
-                height=SPACING['lg'],
-                font=ctk.CTkFont(size=10),
-                fg_color="transparent",
-                hover_color=COLORS['bg_hover'],
-                text_color=COLORS['fg_dim'],
-                corner_radius=4,
-                command=self._toggle_expand
+                width=20,
+                font=ctk.CTkFont(size=12),
+                text_color=COLORS['fg_dim']
             )
-            self.expand_btn.pack(side="left", padx=(SPACING['xs'], 0))
+            self.expand_btn.pack(side="left", padx=(4, 0))
         else:
             # Empty spacer for alignment
-            spacer = ctk.CTkFrame(row, fg_color="transparent", width=SPACING['lg'])
-            spacer.pack(side="left", padx=(SPACING['xs'], 0))
+            spacer = ctk.CTkFrame(row, fg_color="transparent", width=20)
+            spacer.pack(side="left", padx=(4, 0))
 
         # Sample count from database cache - pack FIRST (right side) before folder button
         count = self._get_cached_count()
@@ -73,25 +69,26 @@ class FolderNode(ctk.CTkFrame):
             count_label = ctk.CTkLabel(
                 row,
                 text=str(count),
-                font=ctk.CTkFont(family="JetBrains Mono", size=10),
+                font=ctk.CTkFont(family="JetBrains Mono", size=11),
                 fg_color=COLORS['bg_hover'],
-                corner_radius=3,
+                corner_radius=4,
                 text_color=COLORS['fg_dim'],
-                width=32,
-                height=18
+                width=36,
+                height=22
             )
-            count_label.pack(side="right", padx=(0, SPACING['sm']))
+            count_label.pack(side="right", padx=(0, 8))
 
-        # Folder button - pack AFTER count so it expands into remaining space
+        # Folder button - BIGGER font, clicking also toggles expand
+        font_size = 14 if self.level == 0 else 13  # Root folders bigger text
         self.folder_btn = ctk.CTkButton(
             row,
             text=f" {folder_name}",
-            font=ctk.CTkFont(family="Inter", size=13),
+            font=ctk.CTkFont(family="Inter", size=font_size),
             fg_color="transparent",
             hover_color=COLORS['bg_hover'],
             anchor="w",
-            height=28,
-            corner_radius=4,
+            height=row_height - 4,
+            corner_radius=6,
             text_color=COLORS['fg_secondary'],
             command=self._on_click
         )
@@ -117,11 +114,15 @@ class FolderNode(ctk.CTkFrame):
             return 0
 
     def _on_click(self):
-        """Handle folder click."""
+        """Handle folder click - select folder AND toggle expand/collapse."""
         try:
             if not self.winfo_exists():
                 return
+            # First, select the folder to show its contents
             self.on_select(self.folder_path, self)
+            # Then, toggle expand/collapse if folder has subfolders
+            if self.has_subfolders:
+                self._toggle_expand()
         except Exception:
             pass  # Widget was destroyed
 
@@ -136,12 +137,14 @@ class FolderNode(ctk.CTkFrame):
         self.is_expanded = not self.is_expanded
 
         try:
-            if self.is_expanded:
-                self.expand_btn.configure(text="\u25be")  # Thin down arrow ▾
-                self._create_children()
-            else:
-                self.expand_btn.configure(text="\u25b8")  # Thin right arrow ▸
-                self._destroy_children()
+            # Update arrow indicator (works for both CTkLabel and CTkButton)
+            if hasattr(self, 'expand_btn') and self.expand_btn:
+                if self.is_expanded:
+                    self.expand_btn.configure(text="\u25be")  # Thin down arrow ▾
+                    self._create_children()
+                else:
+                    self.expand_btn.configure(text="\u25b8")  # Thin right arrow ▸
+                    self._destroy_children()
 
             self.on_toggle(self.folder_path, self.is_expanded)
         except Exception:
@@ -220,7 +223,16 @@ class LibraryTreeView(ctk.CTkFrame):
     def __init__(self, master, root_folders=None, command=None, on_favorites=None,
                  on_recent=None, on_collection=None, on_create_collection=None,
                  on_remove_folder=None, on_export_collection=None, **kwargs):
-        super().__init__(master, width=220, corner_radius=0, fg_color=COLORS['bg_dark'], **kwargs)
+        # Add border for pro look - WIDER for bigger items
+        super().__init__(
+            master,
+            width=260,  # Wider to fit bigger items
+            corner_radius=0,
+            fg_color=COLORS['bg_dark'],
+            border_width=1,
+            border_color=COLORS['border'],
+            **kwargs
+        )
         self.grid_propagate(False)
 
         self.command = command
@@ -243,15 +255,15 @@ class LibraryTreeView(ctk.CTkFrame):
 
     def _build_ui(self):
         """Build the tree view UI."""
-        # Header
+        # Header - BIGGER and more prominent
         header = ctk.CTkFrame(self, fg_color="transparent")
-        header.pack(fill="x", padx=12, pady=(16, 8))
+        header.pack(fill="x", padx=16, pady=(20, 12))
 
         title = ctk.CTkLabel(
             header,
             text="LIBRARY INDEX",
-            font=ctk.CTkFont(size=12, weight="bold"),
-            text_color=COLORS['fg_secondary']
+            font=ctk.CTkFont(size=13, weight="bold"),
+            text_color=COLORS['accent']
         )
         title.pack(side="left")
 
@@ -262,7 +274,7 @@ class LibraryTreeView(ctk.CTkFrame):
             scrollbar_button_color=COLORS['bg_hover'],
             scrollbar_button_hover_color=COLORS['accent']
         )
-        self.scroll_frame.pack(fill="both", expand=True, padx=4, pady=(0, 12))
+        self.scroll_frame.pack(fill="both", expand=True, padx=8, pady=(0, 12))
 
     def refresh(self):
         """Re-render the folder tree."""
@@ -301,8 +313,8 @@ class LibraryTreeView(ctk.CTkFrame):
         self._create_collections_section()
 
         # Separator before folders
-        separator = ctk.CTkFrame(self.scroll_frame, fg_color=COLORS['bg_hover'], height=1)
-        separator.pack(fill="x", padx=8, pady=8)
+        separator = ctk.CTkFrame(self.scroll_frame, fg_color=COLORS['border'], height=1)
+        separator.pack(fill="x", padx=4, pady=12)
 
         for folder in self.root_folders:
             if os.path.exists(folder):
@@ -323,29 +335,25 @@ class LibraryTreeView(ctk.CTkFrame):
 
     def _create_favorites_item(self):
         """Create the Favorites item at the top of the tree."""
-        # Row container
-        row = ctk.CTkFrame(self.scroll_frame, fg_color="transparent", height=32)
-        row.pack(fill="x", pady=1)
+        # Row container - BIGGER
+        row = ctk.CTkFrame(self.scroll_frame, fg_color="transparent", height=42)
+        row.pack(fill="x", pady=2)
         row.pack_propagate(False)
 
-        # Star icon spacer (to align with folder expand buttons)
-        spacer = ctk.CTkFrame(row, fg_color="transparent", width=24)
-        spacer.pack(side="left", padx=(4, 0))
-
-        # Favorites button
+        # Favorites button - BIGGER font
         self.favorites_btn = ctk.CTkButton(
             row,
-            text="\u2605 Favorites",
-            font=ctk.CTkFont(size=12),
+            text="\u2605  Favorites",
+            font=ctk.CTkFont(size=14, weight="bold"),
             fg_color="transparent",
             hover_color=COLORS['bg_hover'],
             anchor="w",
-            height=28,
-            corner_radius=4,
+            height=38,
+            corner_radius=6,
             text_color=COLORS['accent'],
             command=self._on_favorites_click
         )
-        self.favorites_btn.pack(side="left", fill="x", expand=True)
+        self.favorites_btn.pack(side="left", fill="x", expand=True, padx=(4, 0))
 
         # Favorites count
         db = get_database()
@@ -354,12 +362,12 @@ class LibraryTreeView(ctk.CTkFrame):
             count_label = ctk.CTkLabel(
                 row,
                 text=str(count),
-                font=ctk.CTkFont(size=10),
+                font=ctk.CTkFont(size=11),
                 fg_color=COLORS['accent'],
-                corner_radius=3,
+                corner_radius=4,
                 text_color="#ffffff",
-                width=35,
-                height=18
+                width=36,
+                height=22
             )
             count_label.pack(side="right", padx=(0, 8))
 
@@ -389,29 +397,25 @@ class LibraryTreeView(ctk.CTkFrame):
 
     def _create_recent_item(self):
         """Create the Recent item below Favorites."""
-        # Row container
-        row = ctk.CTkFrame(self.scroll_frame, fg_color="transparent", height=32)
-        row.pack(fill="x", pady=1)
+        # Row container - BIGGER
+        row = ctk.CTkFrame(self.scroll_frame, fg_color="transparent", height=42)
+        row.pack(fill="x", pady=2)
         row.pack_propagate(False)
 
-        # Clock icon spacer (to align with folder expand buttons)
-        spacer = ctk.CTkFrame(row, fg_color="transparent", width=24)
-        spacer.pack(side="left", padx=(4, 0))
-
-        # Recent button
+        # Recent button - BIGGER font
         self.recent_btn = ctk.CTkButton(
             row,
-            text="\U0001f552 Recent",
-            font=ctk.CTkFont(size=12),
+            text="\U0001f552  Recent",
+            font=ctk.CTkFont(size=14),
             fg_color="transparent",
             hover_color=COLORS['bg_hover'],
             anchor="w",
-            height=28,
-            corner_radius=4,
+            height=38,
+            corner_radius=6,
             text_color=COLORS['fg_secondary'],
             command=self._on_recent_click
         )
-        self.recent_btn.pack(side="left", fill="x", expand=True)
+        self.recent_btn.pack(side="left", fill="x", expand=True, padx=(4, 0))
 
         # Recent count
         db = get_database()
@@ -420,12 +424,12 @@ class LibraryTreeView(ctk.CTkFrame):
             self.recent_count_label = ctk.CTkLabel(
                 row,
                 text=str(count),
-                font=ctk.CTkFont(size=10),
+                font=ctk.CTkFont(size=11),
                 fg_color=COLORS['bg_hover'],
-                corner_radius=3,
+                corner_radius=4,
                 text_color=COLORS['fg_dim'],
-                width=35,
-                height=18
+                width=36,
+                height=22
             )
             self.recent_count_label.pack(side="right", padx=(0, 8))
 
@@ -476,33 +480,33 @@ class LibraryTreeView(ctk.CTkFrame):
     def _create_collections_section(self):
         """Create the Collections section."""
         # Separator before collections
-        separator = ctk.CTkFrame(self.scroll_frame, fg_color=COLORS['bg_hover'], height=1)
-        separator.pack(fill="x", padx=8, pady=8)
+        separator = ctk.CTkFrame(self.scroll_frame, fg_color=COLORS['border'], height=1)
+        separator.pack(fill="x", padx=4, pady=12)
 
-        # Collections header with + button
-        header_row = ctk.CTkFrame(self.scroll_frame, fg_color="transparent", height=24)
-        header_row.pack(fill="x", padx=8, pady=(0, 4))
+        # Collections header with + button - BIGGER
+        header_row = ctk.CTkFrame(self.scroll_frame, fg_color="transparent", height=32)
+        header_row.pack(fill="x", padx=8, pady=(0, 8))
         header_row.pack_propagate(False)
 
         collections_label = ctk.CTkLabel(
             header_row,
             text="COLLECTIONS",
-            font=ctk.CTkFont(size=12, weight="bold"),
-            text_color=COLORS['fg_secondary']
+            font=ctk.CTkFont(size=13, weight="bold"),
+            text_color=COLORS['accent']
         )
         collections_label.pack(side="left")
 
-        # Add collection button
+        # Add collection button - BIGGER
         add_btn = ctk.CTkButton(
             header_row,
             text="+",
-            width=20,
-            height=20,
-            font=ctk.CTkFont(size=14, weight="bold"),
+            width=28,
+            height=28,
+            font=ctk.CTkFont(size=18, weight="bold"),
             fg_color="transparent",
             hover_color=COLORS['bg_hover'],
-            text_color=COLORS['fg_dim'],
-            corner_radius=4,
+            text_color=COLORS['fg_secondary'],
+            corner_radius=6,
             command=self._on_create_collection_click
         )
         add_btn.pack(side="right")
@@ -516,10 +520,10 @@ class LibraryTreeView(ctk.CTkFrame):
             hint = ctk.CTkLabel(
                 self.scroll_frame,
                 text="No collections yet",
-                font=ctk.CTkFont(size=11),
+                font=ctk.CTkFont(size=12),
                 text_color=COLORS['fg_muted']
             )
-            hint.pack(anchor="w", padx=32, pady=4)
+            hint.pack(anchor="w", padx=16, pady=8)
         else:
             # Create collection items
             for collection in collections:
@@ -530,29 +534,25 @@ class LibraryTreeView(ctk.CTkFrame):
         collection_id = collection['id']
         collection_name = collection['name']
 
-        # Row container
-        row = ctk.CTkFrame(self.scroll_frame, fg_color="transparent", height=28)
-        row.pack(fill="x", pady=1)
+        # Row container - BIGGER
+        row = ctk.CTkFrame(self.scroll_frame, fg_color="transparent", height=38)
+        row.pack(fill="x", pady=2)
         row.pack_propagate(False)
 
-        # Indent spacer
-        spacer = ctk.CTkFrame(row, fg_color="transparent", width=24)
-        spacer.pack(side="left", padx=(4, 0))
-
-        # Collection button
+        # Collection button - BIGGER font
         btn = ctk.CTkButton(
             row,
-            text=f"\u25A1 {collection_name}",  # Box symbol
-            font=ctk.CTkFont(size=12),
+            text=f"\u25A1  {collection_name}",  # Box symbol
+            font=ctk.CTkFont(size=13),
             fg_color="transparent",
             hover_color=COLORS['bg_hover'],
             anchor="w",
-            height=24,
-            corner_radius=4,
+            height=34,
+            corner_radius=6,
             text_color=COLORS['fg_secondary'],
             command=lambda cid=collection_id: self._on_collection_click(cid)
         )
-        btn.pack(side="left", fill="x", expand=True)
+        btn.pack(side="left", fill="x", expand=True, padx=(4, 0))
 
         # Bind right-click context menu
         btn.bind("<Button-3>", lambda e, cid=collection_id, name=collection_name:
@@ -564,12 +564,12 @@ class LibraryTreeView(ctk.CTkFrame):
             count_label = ctk.CTkLabel(
                 row,
                 text=str(count),
-                font=ctk.CTkFont(size=10),
+                font=ctk.CTkFont(size=11),
                 fg_color=COLORS['bg_hover'],
-                corner_radius=3,
+                corner_radius=4,
                 text_color=COLORS['fg_dim'],
-                width=30,
-                height=16
+                width=36,
+                height=22
             )
             count_label.pack(side="right", padx=(0, 8))
 

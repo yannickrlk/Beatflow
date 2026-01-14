@@ -620,6 +620,127 @@ All UX improvements have been implemented.
 
 ---
 
+## ✅ Completed: Phase 24 - Business Module
+
+**Goal**: Transform ProducerOS into a complete professional suite with finance and invoicing tools.
+
+### Implementation (2026-01-14)
+
+### 1. Database Schema
+- [x] Create `products` table (Beat Licenses, Services)
+- [x] Create `transactions` table (Income/Expenses ledger)
+- [x] Create `invoices` and `invoice_items` tables
+- [x] Create `business_goals` table for monthly targets
+- [x] Create `BusinessManager` core class in `core/business.py`
+
+### 2. Business Dashboard
+- [x] `ui/business_view.py` - Main tabbed container (Dashboard, Invoices, Ledger, Catalog)
+- [x] `ui/business_dashboard.py` - Revenue stats, goal progress, income breakdown
+- [x] Monthly goal setting with progress bar visualization
+- [x] Recent transactions widget
+
+### 3. Invoice Generator
+- [x] PDF Generation using `reportlab` (professional layout with branding)
+- [x] Invoice Editor UI (Add items from catalog, select client)
+- [x] Status workflow (Draft -> Sent -> Paid)
+- [x] Auto-create income transaction when marking invoice as paid
+- [x] Tax rate support with automatic calculation
+
+### 4. Ledger & Catalog
+- [x] `ui/ledger_view.py` - Transaction history with type/category filters
+- [x] CSV export for accounting software
+- [x] `ui/catalog_view.py` - Product/Service preset editor
+- [x] Default presets: MP3 Lease, WAV Lease, Trackout, Exclusive Rights, Services
+
+### Files Created
+- `core/business.py` - BusinessManager class (~700 lines)
+- `ui/business_view.py` - Tabbed container
+- `ui/business_dashboard.py` - Dashboard with stats cards
+- `ui/invoices_view.py` - Invoice list and editor dialog
+- `ui/ledger_view.py` - Transaction list and add/edit dialog
+- `ui/catalog_view.py` - Product catalog with card grid
+
+### Files Modified
+- `core/database.py` - Added 5 business tables with indexes
+- `ui/sidebar.py` - Added Business nav item with $ icon
+- `ui/app.py` - Added BusinessView and navigation handlers
+
+---
+
+## ✅ Completed: Phase 24.5 - UX/UI Polish (User Feedback)
+**Goal**: Address specific user feedback regarding usability and clarity.
+
+### Implementation (2026-01-14)
+
+### 1. Date Input Improvements
+- [x] Created `ui/date_picker.py` with reusable `DatePickerWidget` class
+- [x] Calendar popup with month navigation and day selection
+- [x] **Invoice Due Date**: Replaced text input with `DatePickerWidget`
+- [x] **Transaction Date**: Replaced text input with `DatePickerWidget`
+- [x] Consistent date format (YYYY-MM-DD) across the app
+
+### 2. Business Dashboard Enhancements
+- [x] **Dashboard**: Added info tooltip for "Outstanding" stat card
+- [x] Tooltip explains "Total value of unpaid invoices (Sent status)"
+- [x] Hover-triggered tooltip with proper positioning
+
+### 3. Studio Flow Calendar Overhaul
+- [x] **Visual Redesign**: Complete rewrite of `ui/calendar_view.py`
+- [x] Two-column layout (calendar grid + info panel)
+- [x] Modern card-based design with rounded corners
+- [x] Hover effects on day cells with accent color
+- [x] Weekend days styled differently (dimmed text)
+- [x] Task indicators (colored dots) on calendar days
+- [x] Improved header with navigation and action buttons
+- [x] Scrollable task list in info panel with context tags
+
+### Files Created
+- `ui/date_picker.py` - DatePickerWidget and CalendarPopup classes
+
+### Files Modified
+- `ui/business_dashboard.py` - Added tooltip functionality
+- `ui/invoices_view.py` - Uses DatePickerWidget for due dates
+- `ui/ledger_view.py` - Uses DatePickerWidget for transaction dates
+- `ui/calendar_view.py` - Complete visual redesign
+
+---
+
+---
+
+## ✅ Completed: Phase 25 - Visual Polish (The "Pro" Look)
+**Goal**: Elevate the UI density and typography to match professional DAWs like Ableton or VS Code.
+
+### Implementation (2026-01-14)
+
+### 1. Typography Engine
+- [x] Created `assets/fonts/` directory with README instructions
+- [x] Implemented font loading in `ui/theme.py` with platform fallbacks
+- [x] `_load_fonts()` function loads Inter and JetBrains Mono TTF files if present
+- [x] Fallback chain: Inter → Segoe UI (Win) / SF Pro (macOS) / Cantarell (Linux)
+- [x] Fallback chain: JetBrains Mono → Consolas (Win) / SF Mono (macOS) / monospace
+
+### 2. Layout Density & Borders
+- [x] **Spacing**: Reduced SPACING constants to 4px grid (xs=2, sm=4, md=8, lg=12, xl=16)
+- [x] **SIZING**: Added new constants dict for component dimensions
+- [x] **Borders**: Added 1px borders to Sidebar and LibraryTreeView
+- [x] **Row Height**: Reduced SampleRow from 72px to 64px
+- [x] **Striping**: Added `bg_stripe` color and alternating row backgrounds
+
+### 3. Micro-Interactions
+- [x] **Hover**: Added `_on_hover_enter` / `_on_hover_leave` handlers to SampleRow
+- [x] **Active Indication**: Enhanced sidebar with 3px accent bar + bg_hover background on active tab
+
+### Files Modified
+- `ui/theme.py` - Complete rewrite with font loading, SIZING dict, compact spacing
+- `ui/sidebar.py` - Added border, enhanced active state
+- `ui/tree_view.py` - Added border
+- `ui/library.py` - Added row_index for striping, hover handlers
+
+### Files Created
+- `assets/fonts/README.md` - Instructions for adding custom fonts
+
+---
+
 ## 🔮 Planned: Phase 20 - DAW Kit Export
 **Goal**: Create drum kit presets for popular DAWs.
 - [ ] **Ableton Live**: Create `.adg` Drum Rack files

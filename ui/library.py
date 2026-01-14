@@ -7,7 +7,7 @@ import tkinter as tk
 import customtkinter as ctk
 from PIL import Image, ImageTk
 import pygame
-from ui.theme import COLORS, SPACING
+from ui.theme import COLORS, SPACING, SIZING, FONTS
 from core.scanner import LibraryScanner
 from core.waveform import generate_waveform_image
 from core.database import get_database
@@ -33,20 +33,28 @@ class SampleRow(ctk.CTkFrame):
     def __init__(self, parent, sample, on_play, on_edit=None, on_favorite=None,
                  on_add_to_collection=None, on_analyze=None, show_folder_path=False,
                  on_go_to_folder=None, on_seek=None, on_match=None, on_lab_preview=None,
-                 **kwargs):
+                 row_index=0, **kwargs):
         # Adjust height if showing folder path
-        row_height = 88 if show_folder_path else 72  # Extra height for folder path
+        row_height = 80 if show_folder_path else 64  # Compact height for density
+
+        # Alternating row colors for striping
+        self.row_index = row_index
+        self.base_bg = COLORS['bg_card'] if row_index % 2 == 0 else COLORS['bg_stripe']
 
         super().__init__(
             parent,
-            fg_color=COLORS['bg_card'],
+            fg_color=self.base_bg,
             height=row_height,
-            corner_radius=4,
+            corner_radius=SIZING.get('border_radius_sm', 2),
             border_width=0,
             border_color=COLORS['border'],
             **kwargs
         )
         self.pack_propagate(False)
+
+        # Bind hover events for pro look
+        self.bind("<Enter>", self._on_hover_enter)
+        self.bind("<Leave>", self._on_hover_leave)
 
         self.sample = sample
         self.on_play = on_play
@@ -392,8 +400,8 @@ class SampleRow(ctk.CTkFrame):
             else:
                 self.hide_sync_indicator()
         else:
-            # Normal state: card background, no border
-            self.configure(fg_color=COLORS['bg_card'], border_width=0)
+            # Normal state: return to striped base color, no border
+            self.configure(fg_color=self.base_bg, border_width=0)
             self.play_btn.configure(text="\u25b6", fg_color=COLORS['bg_hover'])
             # Reset waveform to gray (no progress)
             self._update_waveform_progress(0)
@@ -713,6 +721,16 @@ class SampleRow(ctk.CTkFrame):
     def update_sample(self, new_sample):
         """Update the sample data and refresh display."""
         self.sample = new_sample
+
+    def _on_hover_enter(self, event):
+        """Handle mouse enter - highlight row."""
+        if not self.is_playing:
+            self.configure(fg_color=COLORS['bg_hover'])
+
+    def _on_hover_leave(self, event):
+        """Handle mouse leave - restore base color."""
+        if not self.is_playing:
+            self.configure(fg_color=self.base_bg)
 
 
 class SampleList(ctk.CTkFrame):
@@ -1235,8 +1253,8 @@ class SampleList(ctk.CTkFrame):
 
         self.count_label.configure(text=f"{len(self.filtered_samples)} samples")
 
-        # Create sample rows
-        for sample in self.filtered_samples:
+        # Create sample rows with alternating colors for striping
+        for idx, sample in enumerate(self.filtered_samples):
             row = SampleRow(
                 self.scroll_frame, sample, self._on_play, self._on_edit,
                 self._on_favorite, self._on_add_to_collection, self._on_analyze,
@@ -1244,9 +1262,10 @@ class SampleList(ctk.CTkFrame):
                 on_go_to_folder=self._on_go_to_folder if (self.is_global_search or self.is_matching_view) else None,
                 on_seek=self._on_seek,
                 on_match=self._on_match,
-                on_lab_preview=self._on_lab_preview
+                on_lab_preview=self._on_lab_preview,
+                row_index=idx
             )
-            row.pack(fill="x", pady=2)
+            row.pack(fill="x", pady=SPACING.get('row_gap', 1))
             self.sample_rows.append(row)
 
     def _on_play(self, row, toggle=False):

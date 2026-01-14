@@ -1,97 +1,59 @@
-# Current Task: Phase 23 - Rebranding Complete (Beatflow → ProducerOS)
+# Current Task: Phase 25 - Visual Polish (UI Overhaul)
 
 ## Status
-- **Phase 23 (Rebranding)**: COMPLETE
+- **Phase 24 (Business)**: COMPLETE
+- **Phase 24.5 (UX Polish)**: COMPLETE
+- **Phase 25 (Visual Polish)**: COMPLETE
 
-## Summary
+## Objectives
+Make the application feel "dense" and "pro" like Ableton or VS Code, removing the "empty/cheap" feel.
 
-The application has been fully rebranded from **Beatflow** to **ProducerOS**.
+## Step-by-Step Implementation Plan
 
-### What Changed
+### 1. Typography (`ui/theme.py`, `assets/`)
+- [x] **Assets**: Create `assets/fonts/` and add Inter/JetBrainsMono TTF files placeholder.
+- [x] **Font Loader**: Modify `ui/theme.py` to load fonts on startup with platform fallbacks.
+- [x] **Usage**: Update `FONTS` constant to reference "Inter" and "JetBrains Mono" with fallbacks.
 
-| Component | Old Value | New Value |
-|-----------|-----------|-----------|
-| App Name | Beatflow | ProducerOS |
-| Window Title | Beatflow | ProducerOS |
-| Config File | beatflow_config.json | produceros_config.json |
-| Database | beatflow.db | produceros.db |
-| Shell Integration | "Add to Beatflow" | "Add to ProducerOS" |
-| Lab Title | BEATFLOW LAB | PRODUCEROS LAB |
-| Temp Folders | beatflow_sync, beatflow_lab | produceros_sync, produceros_lab |
-| ICS Export UIDs | beatflow-*@beatflow.app | produceros-*@produceros.app |
-| ICS Export Domain | beatflow.app | produceros.app |
+### 2. Density & Layout (`ui/sidebar.py`, `ui/library.py`, `ui/tree_view.py`)
+- [x] **Spacing**: Reduce `SPACING` constants in `ui/theme.py` (4px grid instead of 8px).
+- [x] **Lists**: Update `SampleRow` height to 64px (from 72px), compact row padding.
+- [x] **Borders**: Add 1px border (`COLORS['border']`) to main frames (Sidebar, Library Index).
+- [x] **Striping**: Add alternating background colors for rows (`bg_card` vs `bg_stripe`).
 
-### Files Modified for Rebranding
+### 3. Micro-Interactions
+- [x] **Hover**: All sample rows highlight on mouseover with `bg_hover` color.
+- [x] **Sidebar Active State**: Added vertical accent bar (3px) + background color for selected tab.
 
-**Core Layer:**
-- `core/config.py` - Config file path comment
-- `core/database.py` - Database filename + Lab comment
-- `core/shell_integration.py` - Windows registry keys
-- `core/sync.py` - Temp folder name
-- `core/lab.py` - Temp file prefix
-- `core/exporter.py` - Docstring
-- `core/task_manager.py` - ICS export UIDs and domain
+## Implementation Details
 
-**UI Layer:**
-- `ui/theme.py` - Docstring
-- `ui/lab_drawer.py` - "PRODUCEROS LAB" title
-- `ui/calendar_view.py` - Export filename prefix
+### Theme Changes (`ui/theme.py`)
+- Added `SIZING` constant dictionary with component sizes
+- Added `bg_stripe` color for alternating row colors
+- Added `border_subtle` for very subtle borders
+- Reduced spacing: xs=2, sm=4, md=8, lg=12, xl=16 (compact 4px grid)
+- Font loading with platform-specific fallbacks
 
-**Tests:**
-- `tests/__init__.py` - Package comment
+### Sidebar Changes (`ui/sidebar.py`)
+- Added 1px border around sidebar frame
+- Increased accent indicator width from 2px to 3px
+- Active nav button now has `bg_hover` background color
+- Uses SIZING constants for consistency
 
-### Files Deleted
-- `sample_browser.py` - Legacy monolithic file (unused)
-- `beatflow.db` - Old database (migrated to produceros.db)
-- `Beatflow_installer.iss` - Old installer script
+### Library Tree View Changes (`ui/tree_view.py`)
+- Added 1px border around tree view frame
+- Imported SIZING and FONTS constants
 
-### New Files Created
-- `core/version.py` - Version info (v1.0.0)
-- `BUSINESS_PLAN.md` - Full commercialization strategy
-- `LICENSE` - MIT License
-- `NOTICE` - Third-party attributions
-- `legal/EULA.txt` - End User License Agreement
-- `legal/PRIVACY.md` - Privacy Policy
-- `ProducerOS_installer.iss` - Inno Setup installer script
+### Sample List Changes (`ui/library.py`)
+- Added `row_index` parameter for striping
+- Added hover event handlers (`_on_hover_enter`, `_on_hover_leave`)
+- Reduced row height to 64px (80px with folder path)
+- Uses `bg_stripe` for odd rows, `bg_card` for even rows
+- Row gap reduced to `SPACING['row_gap']` (1px)
 
----
-
-## Brand Information
-
-| Element | Value |
-|---------|-------|
-| **Name** | ProducerOS |
-| **Tagline** | "Your Creative Command Center" |
-| **Version** | 1.0.0 |
-| **Website** | https://produceros.app |
-| **Support Email** | support@produceros.app |
-| **License** | MIT |
-
----
+## Dependencies
+- No new pip packages required
+- Font files (Inter, JetBrains Mono) can be added to `assets/fonts/` for better typography
 
 ## Next Steps
-
-1. **Visual Assets** - Create logo, icon, screenshots
-2. **Build Installer** - Compile with Inno Setup
-3. **Website** - Create landing page at produceros.app
-4. **Launch** - Follow BUSINESS_PLAN.md roadmap
-
----
-
-## Testing
-
-Application tested successfully:
-```
-py -3.12 main.py
-```
-
-Output:
-```
-pygame 2.6.1 initialized
-Drag & drop enabled successfully
-Exit code: 0
-```
-
-New files created automatically:
-- `produceros.db` (131 KB)
-- `produceros_config.json` (existing)
+See `implementation_plan.md` for remaining roadmap items (Phase 20: DAW Kit Export).

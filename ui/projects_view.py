@@ -17,8 +17,9 @@ class ProjectTemplateDialog(ctk.CTkToplevel):
         self.create_blank = False
 
         self.title("New Project")
-        self.geometry("480x550")
-        self.resizable(False, False)
+        self.geometry("500x580")
+        self.minsize(420, 450)
+        self.resizable(True, True)
 
         # Configure colors
         self.configure(fg_color=COLORS['bg_main'])
@@ -30,31 +31,39 @@ class ProjectTemplateDialog(ctk.CTkToplevel):
         self._build_ui()
 
     def _build_ui(self):
-        """Build the dialog UI."""
-        # Header
+        """Build the dialog UI with grid layout."""
+        # Grid layout for proper expansion
+        self.grid_rowconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+
+        # Header (row 0)
+        header_frame = ctk.CTkFrame(self, fg_color="transparent")
+        header_frame.grid(row=0, column=0, sticky="ew", padx=SPACING['lg'], pady=(SPACING['lg'], SPACING['sm']))
+
         header_label = ctk.CTkLabel(
-            self,
+            header_frame,
             text="Create New Project",
             font=ctk.CTkFont(family="Inter", size=18, weight="bold"),
             text_color=COLORS['fg']
         )
-        header_label.pack(pady=(SPACING['lg'], SPACING['sm']))
+        header_label.pack(anchor="w")
 
         subtitle_label = ctk.CTkLabel(
-            self,
+            header_frame,
             text="Choose a template to get started quickly",
             font=ctk.CTkFont(family="Inter", size=12),
             text_color=COLORS['fg_secondary']
         )
-        subtitle_label.pack(pady=(0, SPACING['md']))
+        subtitle_label.pack(anchor="w", pady=(SPACING['xs'], 0))
 
-        # Templates scrollable list
+        # Templates scrollable list (row 1, expands)
         templates_frame = ctk.CTkScrollableFrame(
             self,
-            fg_color="transparent",
-            height=350
+            fg_color=COLORS['bg_card'],
+            corner_radius=8,
+            scrollbar_button_color=COLORS['bg_hover']
         )
-        templates_frame.pack(fill="x", padx=SPACING['lg'], pady=SPACING['sm'])
+        templates_frame.grid(row=1, column=0, sticky="nsew", padx=SPACING['lg'], pady=SPACING['sm'])
 
         # Get templates
         templates = self.task_manager.get_project_templates()
@@ -62,16 +71,12 @@ class ProjectTemplateDialog(ctk.CTkToplevel):
         for template in templates:
             self._create_template_card(templates_frame, template)
 
-        # Divider
-        divider = ctk.CTkFrame(self, fg_color=COLORS['border'], height=1)
-        divider.pack(fill="x", padx=SPACING['lg'], pady=SPACING['md'])
-
-        # Blank project option
-        blank_frame = ctk.CTkFrame(self, fg_color="transparent")
-        blank_frame.pack(fill="x", padx=SPACING['lg'], pady=SPACING['sm'])
+        # Bottom buttons (row 2, fixed)
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame.grid(row=2, column=0, sticky="ew", padx=SPACING['lg'], pady=SPACING['md'])
 
         blank_btn = ctk.CTkButton(
-            blank_frame,
+            btn_frame,
             text="Start Blank Project",
             font=ctk.CTkFont(family="Inter", size=13),
             fg_color=COLORS['bg_hover'],
@@ -81,11 +86,10 @@ class ProjectTemplateDialog(ctk.CTkToplevel):
             corner_radius=6,
             command=self._on_blank_project
         )
-        blank_btn.pack(fill="x")
+        blank_btn.pack(fill="x", pady=(0, SPACING['sm']))
 
-        # Cancel button
         cancel_btn = ctk.CTkButton(
-            self,
+            btn_frame,
             text="Cancel",
             font=ctk.CTkFont(family="Inter", size=12),
             fg_color="transparent",
@@ -95,7 +99,7 @@ class ProjectTemplateDialog(ctk.CTkToplevel):
             corner_radius=4,
             command=self.destroy
         )
-        cancel_btn.pack(pady=SPACING['sm'])
+        cancel_btn.pack(fill="x")
 
     def _create_template_card(self, parent, template):
         """Create a clickable template card."""

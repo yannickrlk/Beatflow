@@ -230,9 +230,26 @@ class DatabaseManager:
                 notes TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 completed_at TIMESTAMP,
-                scheduled_date TEXT
+                scheduled_date TEXT,
+                start_time TEXT,
+                end_time TEXT,
+                all_day BOOLEAN DEFAULT 1
             )
         ''')
+
+        # Migration: Add time columns if they don't exist
+        try:
+            cursor.execute('ALTER TABLE daily_tasks ADD COLUMN start_time TEXT')
+        except:
+            pass
+        try:
+            cursor.execute('ALTER TABLE daily_tasks ADD COLUMN end_time TEXT')
+        except:
+            pass
+        try:
+            cursor.execute('ALTER TABLE daily_tasks ADD COLUMN all_day BOOLEAN DEFAULT 1')
+        except:
+            pass
 
         # Projects table for project management
         cursor.execute('''
@@ -331,6 +348,97 @@ class DatabaseManager:
                 started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 ended_at TIMESTAMP
             )
+        ''')
+
+        # ==================== Business Module Tables ====================
+
+        # Products table (Beat Licenses, Services)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS products (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                type TEXT NOT NULL DEFAULT 'license',
+                price REAL NOT NULL DEFAULT 0.0,
+                description TEXT,
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Invoices table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS invoices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                invoice_number TEXT UNIQUE,
+                client_id INTEGER,
+                status TEXT DEFAULT 'draft',
+                due_date TEXT,
+                created_date TEXT,
+                subtotal REAL DEFAULT 0.0,
+                tax_rate REAL DEFAULT 0.0,
+                tax_amount REAL DEFAULT 0.0,
+                total REAL DEFAULT 0.0,
+                notes TEXT,
+                terms TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                paid_at TIMESTAMP,
+                FOREIGN KEY (client_id) REFERENCES clients(id)
+            )
+        ''')
+
+        # Invoice items table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS invoice_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                invoice_id INTEGER NOT NULL,
+                description TEXT NOT NULL,
+                quantity INTEGER DEFAULT 1,
+                unit_price REAL NOT NULL,
+                total REAL NOT NULL,
+                product_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
+                FOREIGN KEY (product_id) REFERENCES products(id)
+            )
+        ''')
+
+        # Transactions table (Income/Expenses ledger)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                type TEXT NOT NULL DEFAULT 'income',
+                amount REAL NOT NULL,
+                category TEXT,
+                description TEXT,
+                date TEXT NOT NULL,
+                invoice_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+            )
+        ''')
+
+        # Business goals table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS business_goals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                type TEXT NOT NULL DEFAULT 'monthly',
+                target_amount REAL NOT NULL,
+                start_date TEXT NOT NULL,
+                end_date TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # Index for invoice lookups
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_invoices_client
+            ON invoices(client_id)
+        ''')
+
+        # Index for transaction date queries
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_transactions_date
+            ON transactions(date)
         ''')
 
         conn.commit()

@@ -344,34 +344,42 @@ class QuickFocusDialog(ctk.CTkToplevel):
         """Configure the dialog."""
         self.title("Start Focus Session")
         self.configure(fg_color=COLORS['bg_main'])
-        self.geometry("400x500")
-        self.resizable(False, False)
+        self.geometry("420x520")
+        self.minsize(350, 400)
+        self.resizable(True, True)
 
         # Center on screen
         self.update_idletasks()
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
-        x = (screen_width - 400) // 2
-        y = (screen_height - 500) // 2
-        self.geometry(f"400x500+{x}+{y}")
+        x = (screen_width - 420) // 2
+        y = (screen_height - 520) // 2
+        self.geometry(f"420x520+{x}+{y}")
 
         self.grab_set()
         self.focus_force()
 
     def _build_ui(self):
-        """Build the dialog UI."""
-        # Header
+        """Build the dialog UI with grid layout."""
+        # Grid layout for proper expansion
+        self.grid_rowconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+
+        # Header (row 0)
+        header_frame = ctk.CTkFrame(self, fg_color="transparent")
+        header_frame.grid(row=0, column=0, sticky="ew", padx=SPACING['lg'], pady=(SPACING['lg'], SPACING['sm']))
+
         header = ctk.CTkLabel(
-            self,
+            header_frame,
             text="Select a task to focus on",
             font=ctk.CTkFont(family="Inter", size=16, weight="bold"),
             text_color=COLORS['fg']
         )
-        header.pack(pady=SPACING['lg'])
+        header.pack(anchor="w")
 
         # Duration selector
-        duration_frame = ctk.CTkFrame(self, fg_color="transparent")
-        duration_frame.pack(fill="x", padx=SPACING['lg'], pady=SPACING['sm'])
+        duration_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
+        duration_frame.pack(fill="x", pady=(SPACING['sm'], 0))
 
         ctk.CTkLabel(
             duration_frame,
@@ -395,16 +403,17 @@ class QuickFocusDialog(ctk.CTkToplevel):
             )
             btn.pack(side="left", padx=SPACING['xs'])
 
-        # Task list (scrollable)
+        # Task list - scrollable (row 1, expands)
         list_frame = ctk.CTkScrollableFrame(
             self,
             fg_color=COLORS['bg_card'],
-            corner_radius=8
+            corner_radius=8,
+            scrollbar_button_color=COLORS['bg_hover']
         )
-        list_frame.pack(fill="both", expand=True, padx=SPACING['lg'], pady=SPACING['md'])
+        list_frame.grid(row=1, column=0, sticky="nsew", padx=SPACING['lg'], pady=SPACING['sm'])
         self.task_list_frame = list_frame
 
-        # Start button
+        # Start button (row 2, fixed at bottom)
         self.start_btn = ctk.CTkButton(
             self,
             text="Start Focus Session",
@@ -416,7 +425,7 @@ class QuickFocusDialog(ctk.CTkToplevel):
             state="disabled",
             command=self._start_session
         )
-        self.start_btn.pack(fill="x", padx=SPACING['lg'], pady=SPACING['lg'])
+        self.start_btn.grid(row=2, column=0, sticky="ew", padx=SPACING['lg'], pady=SPACING['lg'])
 
     def _select_duration(self, mins: str):
         """Update selected duration."""

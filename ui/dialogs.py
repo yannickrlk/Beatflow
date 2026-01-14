@@ -43,8 +43,9 @@ class MetadataEditDialog(ctk.CTkToplevel):
 
         # Window setup
         self.title("Edit Metadata")
-        self.geometry("450x580")
-        self.resizable(False, False)
+        self.geometry("480x620")
+        self.minsize(400, 450)
+        self.resizable(True, True)
         self.configure(fg_color=COLORS['bg_dark'])
 
         # Store original filename for comparison
@@ -56,8 +57,8 @@ class MetadataEditDialog(ctk.CTkToplevel):
 
         # Center on parent
         self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - 450) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - 580) // 2
+        x = parent.winfo_rootx() + (parent.winfo_width() - 480) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - 620) // 2
         self.geometry(f"+{x}+{y}")
 
         self._build_ui()
@@ -66,22 +67,26 @@ class MetadataEditDialog(ctk.CTkToplevel):
         self.filename_entry.focus()
 
     def _build_ui(self):
-        """Build the dialog UI."""
-        # Header
-        header = ctk.CTkFrame(self, fg_color="transparent")
-        header.pack(fill="x", padx=24, pady=(20, 16))
+        """Build the dialog UI with scrollable content."""
+        # Grid layout for proper expansion
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=1)
 
+        # Scrollable content area
+        form = ctk.CTkScrollableFrame(
+            self, fg_color=COLORS['bg_card'], corner_radius=8,
+            scrollbar_button_color=COLORS['bg_hover']
+        )
+        form.grid(row=0, column=0, sticky="nsew", padx=12, pady=(12, 6))
+
+        # Header inside scroll
         title_label = ctk.CTkLabel(
-            header,
+            form,
             text="Edit Metadata",
             font=ctk.CTkFont(size=18, weight="bold"),
             text_color=COLORS['fg']
         )
-        title_label.pack(side="left")
-
-        # Form container
-        form = ctk.CTkFrame(self, fg_color="transparent")
-        form.pack(fill="both", expand=True, padx=24, pady=(0, 16))
+        title_label.pack(anchor="w", pady=(8, 12))
 
         # Filename (editable, without extension)
         filename_frame = ctk.CTkFrame(form, fg_color="transparent")
@@ -202,9 +207,9 @@ class MetadataEditDialog(ctk.CTkToplevel):
             )
             warning.pack(anchor="w", pady=(8, 0))
 
-        # Buttons
+        # Buttons (fixed at bottom, outside scroll)
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=24, pady=(0, 20))
+        btn_frame.grid(row=1, column=0, sticky="ew", padx=12, pady=(6, 12))
 
         cancel_btn = ctk.CTkButton(
             btn_frame,
@@ -1792,32 +1797,41 @@ class AddRuleDialog(ctk.CTkToplevel):
         self.on_save = on_save
 
         self.title("Add Tagging Rule")
-        self.geometry("450x400")
-        self.resizable(False, False)
+        self.geometry("480x450")
+        self.minsize(400, 350)
+        self.resizable(True, True)
         self.configure(fg_color=COLORS['bg_dark'])
 
         self.transient(parent)
         self.grab_set()
 
         self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - 450) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - 400) // 2
+        x = parent.winfo_rootx() + (parent.winfo_width() - 480) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - 450) // 2
         self.geometry(f"+{x}+{y}")
 
         self._build_ui()
 
     def _build_ui(self):
-        """Build the dialog UI."""
-        # Title
+        """Build the dialog UI with scrollable content."""
+        # Grid layout for proper expansion
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+
+        # Scrollable content area
+        form = ctk.CTkScrollableFrame(
+            self, fg_color=COLORS['bg_card'], corner_radius=8,
+            scrollbar_button_color=COLORS['bg_hover']
+        )
+        form.grid(row=0, column=0, sticky="nsew", padx=12, pady=(12, 6))
+
+        # Title inside scroll
         ctk.CTkLabel(
-            self,
+            form,
             text="Create Tagging Rule",
             font=ctk.CTkFont(size=16, weight="bold"),
             text_color=COLORS['fg']
-        ).pack(padx=SPACING['lg'], pady=(SPACING['lg'], SPACING['md']))
-
-        form = ctk.CTkFrame(self, fg_color="transparent")
-        form.pack(fill="both", expand=True, padx=SPACING['lg'])
+        ).pack(anchor="w", pady=(8, SPACING['md']))
 
         # Rule name
         ctk.CTkLabel(
@@ -1912,9 +1926,9 @@ class AddRuleDialog(ctk.CTkToplevel):
         )
         self.tags_entry.pack(fill="x", pady=(4, SPACING['md']))
 
-        # Buttons
+        # Buttons (fixed at bottom, outside scroll)
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=SPACING['lg'], pady=SPACING['lg'])
+        btn_frame.grid(row=1, column=0, sticky="ew", padx=12, pady=(6, 12))
 
         cancel_btn = ctk.CTkButton(
             btn_frame,

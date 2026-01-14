@@ -1,5 +1,5 @@
 # ProducerOS Project Context
-> Last updated: 2026-01-12 (Phase 23 Complete - Rebranding Beatflow → ProducerOS)
+> Last updated: 2026-01-14 (Phase 25 Complete - Visual Polish)
 > For collaboration between Claude (implementation) and Gemini (brainstorming)
 
 ---
@@ -22,6 +22,7 @@
 - Task management (Studio Flow)
 - Network/contacts management
 - Non-destructive audio editing (Lab)
+- Business module (invoicing, finances, product catalog)
 
 **Brand Info:**
 - **Name**: ProducerOS
@@ -66,13 +67,14 @@ ProducerOS/
 │   ├── client_manager.py   # ClientManager - Network contacts CRUD
 │   ├── task_manager.py     # TaskManager - Daily tasks & project management
 │   ├── shell_integration.py # Windows shell "Add to ProducerOS" context menu
-│   └── metadata_architect.py # Rule engine, regex renamer, duplicate finder
+│   ├── metadata_architect.py # Rule engine, regex renamer, duplicate finder
+│   └── business.py         # BusinessManager - Invoices, transactions, products
 │
 ├── ui/
 │   ├── __init__.py
 │   ├── theme.py            # COLORS dict, shared styling constants
 │   ├── app.py              # ProducerOSApp - main window, layout
-│   ├── sidebar.py          # Sidebar - navigation (Browse, Network, Studio Flow)
+│   ├── sidebar.py          # Sidebar - navigation (Browse, Network, Studio Flow, Business)
 │   ├── player.py           # FooterPlayer - Global playback controls + Sync
 │   ├── dialogs.py          # MetadataEditDialog + Settings + MetadataArchitect
 │   ├── tree_view.py        # LibraryTreeView - folder tree, collections UI
@@ -86,8 +88,14 @@ ProducerOS/
 │   ├── projects_view.py    # ProjectsView - Project management + Kanban
 │   ├── focus_mode.py       # FocusModeWindow - Pomodoro timer
 │   ├── productivity_dashboard.py  # Charts and insights
-│   ├── calendar_view.py    # Month calendar + .ics export
-│   └── task_dialogs.py     # Task/Project add/edit dialogs
+│   ├── calendar_view.py    # Month calendar + .ics export (modernized)
+│   ├── task_dialogs.py     # Task/Project add/edit dialogs
+│   ├── date_picker.py      # DatePickerWidget + CalendarPopup
+│   ├── business_view.py    # BusinessView - Main tabbed container
+│   ├── business_dashboard.py # Dashboard - Stats, goals, income breakdown
+│   ├── invoices_view.py    # InvoicesView - Invoice list and editor
+│   ├── ledger_view.py      # LedgerView - Transaction history
+│   └── catalog_view.py     # CatalogView - Product/service management
 │
 ├── legal/
 │   ├── EULA.txt            # End User License Agreement
@@ -424,6 +432,24 @@ sample_list.clear_samples()                # Clear the sample list
 ✅ **Calendar View**: Month calendar with task indicators and navigation
 ✅ **Calendar Export**: Export tasks to .ics file for Google Calendar/Outlook
 ✅ **Focus Sessions Tracking**: Database tracking of Pomodoro sessions and time spent
+✅ **Business Module**: Finance and invoicing for beat producers
+✅ **Invoice Generator**: Create professional PDF invoices with items from catalog
+✅ **Invoice Status Workflow**: Draft → Sent → Paid with auto-transaction creation
+✅ **Transaction Ledger**: Track income and expenses with category filters
+✅ **Product Catalog**: Beat licenses (MP3, WAV, Trackout, Exclusive) and services
+✅ **Monthly Goals**: Set income goals and track progress with visual progress bar
+✅ **Income Dashboard**: Revenue stats, income breakdown by category, recent transactions
+✅ **CSV Export**: Export transactions to CSV for accounting software
+✅ **DatePickerWidget**: Reusable calendar popup for date inputs (invoices, transactions)
+✅ **Outstanding Tooltip**: Info tooltip on dashboard explaining unpaid invoices
+✅ **Modern Calendar View**: Two-column layout with hover effects, task indicators, modern styling
+✅ **Visual Polish (Phase 25)**: Dense pro-style layout like Ableton/VS Code
+✅ **Font Loading**: Platform-aware font loading with fallbacks (Inter, JetBrains Mono)
+✅ **Compact Spacing**: 4px grid system for denser UI
+✅ **Row Striping**: Alternating row colors for better readability
+✅ **Hover Effects**: All sample rows highlight on mouseover
+✅ **Panel Borders**: 1px borders on sidebar and library tree for pro look
+✅ **Active State Indicator**: Enhanced sidebar with accent bar + background on active tab
 
 ---
 
@@ -501,11 +527,24 @@ sample_list.clear_samples()                # Clear the sample list
 - [x] Project templates with pre-built workflows
 - [x] Template selection dialog on new project
 
+### Phase 25 (Visual Polish) - COMPLETE
+- [x] Font loading system with platform-specific fallbacks
+- [x] assets/fonts/ directory with README for custom fonts
+- [x] Compact 4px grid spacing (xs=2, sm=4, md=8, lg=12, xl=16)
+- [x] SIZING constants for consistent component dimensions
+- [x] Alternating row colors (bg_card/bg_stripe)
+- [x] Hover effects on all sample rows
+- [x] 1px borders on Sidebar and Library Tree View
+- [x] Enhanced sidebar active state (3px accent bar + background)
+
 ### Planned Features (Roadmap)
 - [ ] **Phase 20**: DAW Kit Export (Ableton .adg, FL Studio .fpc)
 - [x] **Phase 21**: Studio Flow (Task Management) - COMPLETE
 - [x] **Phase 21.1**: Studio Flow UX Enhancements - COMPLETE
 - [x] **Phase 21.2**: Studio Flow Advanced Features (Focus Mode, Dashboard, Calendar) - COMPLETE
+- [x] **Phase 24**: Business Module (Invoices, Ledger, Catalog) - COMPLETE
+- [x] **Phase 24.5**: UX Polish (DatePicker, Tooltips, Calendar Redesign) - COMPLETE
+- [x] **Phase 25**: Visual Polish (Dense Pro Layout) - COMPLETE
 
 ### Lower Priority
 - [ ] VST/AU Plugin Version

@@ -59,7 +59,8 @@ class TaskManager:
         Add a new daily task.
 
         Args:
-            data: Dict with task fields (title, priority, context, time_estimate, notes, scheduled_date).
+            data: Dict with task fields (title, priority, context, time_estimate, notes,
+                  scheduled_date, start_time, end_time, all_day).
 
         Returns:
             The ID of the created task.
@@ -68,15 +69,19 @@ class TaskManager:
         cursor = conn.cursor()
 
         cursor.execute('''
-            INSERT INTO daily_tasks (title, priority, context, time_estimate, notes, scheduled_date)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO daily_tasks (title, priority, context, time_estimate, notes,
+                                    scheduled_date, start_time, end_time, all_day)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             data.get('title', ''),
             data.get('priority', 0),
             data.get('context', '@Studio'),
             data.get('time_estimate'),
             data.get('notes', ''),
-            data.get('scheduled_date', datetime.now().strftime('%Y-%m-%d'))
+            data.get('scheduled_date', datetime.now().strftime('%Y-%m-%d')),
+            data.get('start_time'),
+            data.get('end_time'),
+            1 if data.get('all_day', True) else 0
         ))
         conn.commit()
         return cursor.lastrowid
@@ -110,6 +115,46 @@ class TaskManager:
 
         cursor.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
+
+    def get_tasks_for_month(self, year: int, month: int) -> Dict[str, List[Dict]]:
+        """
+        Get all tasks for a month grouped by date (single query for performance).
+
+        Args:
+            year: The year (e.g., 2026).
+            month: The month (1-12).
+
+        Returns:
+            Dict mapping date strings to lists of task dicts.
+        """
+        conn = self.db._get_connection()
+        cursor = conn.cursor()
+
+        # Query all tasks for the month
+        start_date = f"{year}-{month:02d}-01"
+        if month == 12:
+            end_date = f"{year}-12-31"
+        else:
+            end_date = f"{year}-{month + 1:02d}-01"
+
+        query = '''
+            SELECT * FROM daily_tasks
+            WHERE scheduled_date >= ? AND scheduled_date < ?
+            ORDER BY scheduled_date, completed ASC, priority DESC
+        '''
+        cursor.execute(query, (start_date, end_date))
+
+        # Group by date
+        result = {}
+        for row in cursor.fetchall():
+            task = dict(row)
+            date = task.get('scheduled_date')
+            if date:
+                if date not in result:
+                    result[date] = []
+                result[date].append(task)
+
+        return result
 
     def toggle_daily_task(self, task_id: int) -> bool:
         """
