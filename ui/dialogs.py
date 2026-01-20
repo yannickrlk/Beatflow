@@ -5,9 +5,122 @@ import re
 import threading
 import webbrowser
 import customtkinter as ctk
-from typing import Dict, Callable, Optional, List
+from typing import Dict, Callable, Optional, List, Tuple
 from ui.theme import COLORS, SPACING
 from core.version import get_about_info, VERSION, APP_NAME
+
+
+# =============================================================================
+# Helper Functions - Reduce code duplication
+# =============================================================================
+
+def _center_dialog_on_parent(dialog: ctk.CTkToplevel, parent, width: int, height: int):
+    """Center a dialog window on its parent.
+
+    Args:
+        dialog: The dialog to center
+        parent: Parent window
+        width: Dialog width
+        height: Dialog height
+    """
+    dialog.update_idletasks()
+    x = parent.winfo_rootx() + (parent.winfo_width() - width) // 2
+    y = parent.winfo_rooty() + (parent.winfo_height() - height) // 2
+    dialog.geometry(f"+{x}+{y}")
+
+
+def _create_labeled_entry(
+    parent,
+    label_text: str,
+    value: str = "",
+    placeholder: str = "",
+    label_color: str = None
+) -> Tuple[ctk.CTkFrame, ctk.CTkEntry]:
+    """Create a labeled entry field with consistent styling.
+
+    Args:
+        parent: Parent widget
+        label_text: Text for the label
+        value: Initial value for the entry
+        placeholder: Placeholder text
+        label_color: Optional custom label color
+
+    Returns:
+        Tuple of (frame, entry) widgets
+    """
+    frame = ctk.CTkFrame(parent, fg_color="transparent")
+    frame.pack(fill="x", pady=(0, 12))
+
+    label = ctk.CTkLabel(
+        frame,
+        text=label_text,
+        font=ctk.CTkFont(size=12),
+        text_color=label_color or COLORS['fg_secondary']
+    )
+    label.pack(anchor="w")
+
+    entry = ctk.CTkEntry(
+        frame,
+        font=ctk.CTkFont(size=13),
+        fg_color=COLORS['bg_hover'],
+        border_width=0,
+        height=36,
+        placeholder_text=placeholder
+    )
+    entry.pack(fill="x", pady=(4, 0))
+    if value:
+        entry.insert(0, value)
+
+    return frame, entry
+
+
+def _create_action_button(
+    parent,
+    text: str,
+    command: Callable,
+    primary: bool = False,
+    width: int = 100,
+    height: int = 36
+) -> ctk.CTkButton:
+    """Create a styled action button.
+
+    Args:
+        parent: Parent widget
+        text: Button text
+        command: Click handler
+        primary: Whether this is a primary (accent) button
+        width: Button width
+        height: Button height
+
+    Returns:
+        The created button
+    """
+    if primary:
+        return ctk.CTkButton(
+            parent,
+            text=text,
+            font=ctk.CTkFont(size=13, weight="bold"),
+            fg_color=COLORS['accent'],
+            hover_color=COLORS.get('accent_hover', COLORS['accent']),
+            text_color="white",
+            width=width,
+            height=height,
+            corner_radius=6,
+            command=command
+        )
+    else:
+        return ctk.CTkButton(
+            parent,
+            text=text,
+            font=ctk.CTkFont(size=13),
+            fg_color=COLORS['bg_hover'],
+            hover_color=COLORS['bg_card'],
+            text_color=COLORS['fg'],
+            width=width,
+            height=height,
+            corner_radius=6,
+            command=command
+        )
 
 # Shell integration (Windows only)
 try:
@@ -56,10 +169,7 @@ class MetadataEditDialog(ctk.CTkToplevel):
         self.grab_set()
 
         # Center on parent
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - 480) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - 620) // 2
-        self.geometry(f"+{x}+{y}")
+        _center_dialog_on_parent(self, parent, 480, 620)
 
         self._build_ui()
 
@@ -329,10 +439,7 @@ class NewCollectionDialog(ctk.CTkToplevel):
         self.grab_set()
 
         # Center on parent
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - 350) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - 180) // 2
-        self.geometry(f"+{x}+{y}")
+        _center_dialog_on_parent(self, parent, 350, 180)
 
         self._build_ui()
         self.name_entry.focus()
@@ -378,32 +485,10 @@ class NewCollectionDialog(ctk.CTkToplevel):
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.grid(row=2, column=0, sticky="ew", padx=24, pady=(20, 20))
 
-        cancel_btn = ctk.CTkButton(
-            btn_frame,
-            text="Cancel",
-            font=ctk.CTkFont(size=13),
-            fg_color=COLORS['bg_hover'],
-            hover_color=COLORS['bg_card'],
-            text_color=COLORS['fg'],
-            width=90,
-            height=36,
-            corner_radius=6,
-            command=self._on_cancel
-        )
+        cancel_btn = _create_action_button(btn_frame, "Cancel", self._on_cancel, primary=False, width=90)
         cancel_btn.pack(side="right", padx=(8, 0))
 
-        create_btn = ctk.CTkButton(
-            btn_frame,
-            text="Create",
-            font=ctk.CTkFont(size=13, weight="bold"),
-            fg_color=COLORS['accent'],
-            hover_color=COLORS['accent_hover'] if 'accent_hover' in COLORS else COLORS['accent'],
-            text_color="white",
-            width=90,
-            height=36,
-            corner_radius=6,
-            command=self._on_create
-        )
+        create_btn = _create_action_button(btn_frame, "Create", self._on_create, primary=True, width=90)
         create_btn.pack(side="right")
 
         # Bind keys
@@ -451,10 +536,7 @@ class AddToCollectionDialog(ctk.CTkToplevel):
         self.grab_set()
 
         # Center on parent
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - 320) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - 350) // 2
-        self.geometry(f"+{x}+{y}")
+        _center_dialog_on_parent(self, parent, 320, 350)
 
         self._build_ui()
 
@@ -589,10 +671,7 @@ class SettingsDialog(ctk.CTkToplevel):
         self.grab_set()
 
         # Center on parent
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - 450) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - 520) // 2
-        self.geometry(f"+{x}+{y}")
+        _center_dialog_on_parent(self, parent, 450, 520)
 
         # Shortcut entry state
         self.shortcut_entries = {}
@@ -1046,10 +1125,7 @@ class MetadataArchitectDialog(ctk.CTkToplevel):
         self.grab_set()
 
         # Center on parent
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - 800) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - 650) // 2
-        self.geometry(f"+{x}+{y}")
+        _center_dialog_on_parent(self, parent, 800, 650)
 
         # State
         self.current_tab = 'rules'
@@ -1506,7 +1582,11 @@ class MetadataArchitectDialog(ctk.CTkToplevel):
         self._show_duplicate_results()
 
     def _show_duplicate_results(self):
-        """Show duplicate scan results."""
+        """Show duplicate scan results with batched rendering.
+
+        Performance: Only render first batch of groups immediately.
+        Additional groups are loaded as user scrolls (lazy loading).
+        """
         for widget in self.dup_list.winfo_children():
             widget.destroy()
 
@@ -1526,8 +1606,65 @@ class MetadataArchitectDialog(ctk.CTkToplevel):
             text=f"Found {len(self.duplicate_groups)} duplicate groups ({total_dupes} extra files)"
         )
 
-        for i, group in enumerate(self.duplicate_groups):
-            self._create_duplicate_group(i, group)
+        # Render first batch immediately (performance: limit initial widget creation)
+        self._rendered_groups = 0
+        self._render_batch_size = 20  # Number of groups to render at once
+
+        self._render_duplicate_batch()
+
+        # Add "Load More" button if there are more groups
+        if len(self.duplicate_groups) > self._render_batch_size:
+            self._add_load_more_button()
+
+    def _render_duplicate_batch(self):
+        """Render next batch of duplicate groups."""
+        start_idx = self._rendered_groups
+        end_idx = min(start_idx + self._render_batch_size, len(self.duplicate_groups))
+
+        for i in range(start_idx, end_idx):
+            self._create_duplicate_group(i, self.duplicate_groups[i])
+
+        self._rendered_groups = end_idx
+
+    def _add_load_more_button(self):
+        """Add a 'Load More' button for lazy loading remaining groups."""
+        remaining = len(self.duplicate_groups) - self._rendered_groups
+        if remaining <= 0:
+            return
+
+        # Remove existing load more button if present
+        if hasattr(self, '_load_more_frame') and self._load_more_frame:
+            self._load_more_frame.destroy()
+
+        self._load_more_frame = ctk.CTkFrame(self.dup_list, fg_color="transparent")
+        self._load_more_frame.pack(fill="x", padx=SPACING['sm'], pady=SPACING['md'])
+
+        load_more_btn = ctk.CTkButton(
+            self._load_more_frame,
+            text=f"Load More ({remaining} remaining)",
+            font=ctk.CTkFont(size=12),
+            fg_color=COLORS['bg_hover'],
+            hover_color=COLORS['bg_card'],
+            text_color=COLORS['fg'],
+            height=34,
+            corner_radius=6,
+            command=self._load_more_groups
+        )
+        load_more_btn.pack(fill="x")
+
+    def _load_more_groups(self):
+        """Load and render more duplicate groups."""
+        # Remove the load more button
+        if hasattr(self, '_load_more_frame') and self._load_more_frame:
+            self._load_more_frame.destroy()
+            self._load_more_frame = None
+
+        # Render next batch
+        self._render_duplicate_batch()
+
+        # Add load more button again if still more groups
+        if self._rendered_groups < len(self.duplicate_groups):
+            self._add_load_more_button()
 
     def _create_duplicate_group(self, index: int, group: List[Dict]):
         """Create a UI group for duplicates."""
@@ -1597,9 +1734,12 @@ class MetadataArchitectDialog(ctk.CTkToplevel):
                 del_btn.pack(side="right", padx=SPACING['sm'], pady=4)
 
     def _remove_duplicate(self, path: str):
-        """Remove a duplicate file with confirmation."""
+        """Remove a duplicate file with confirmation.
+
+        Performance: Instead of re-scanning the entire library after deletion,
+        we remove the item from our cached groups and refresh the UI directly.
+        """
         from tkinter import messagebox
-        import os
         filename = os.path.basename(path)
 
         # Show confirmation dialog using standard messagebox
@@ -1612,9 +1752,26 @@ class MetadataArchitectDialog(ctk.CTkToplevel):
         if result:
             success, msg = self.duplicate_finder.safe_delete(path)
             if success:
-                self._scan_duplicates()  # Refresh
+                # Remove from cached groups instead of re-scanning
+                self._remove_from_duplicate_groups(path)
+                # Refresh UI with updated groups (no re-scan needed)
+                self._show_duplicate_results()
                 if self.on_refresh:
                     self.on_refresh()
+
+    def _remove_from_duplicate_groups(self, path: str):
+        """Remove a path from the cached duplicate groups.
+
+        Also removes groups that become singletons (no longer duplicates).
+        """
+        updated_groups = []
+        for group in self.duplicate_groups:
+            # Filter out the deleted path
+            new_group = [s for s in group if s.get('path') != path]
+            # Only keep groups with 2+ items (still duplicates)
+            if len(new_group) >= 2:
+                updated_groups.append(new_group)
+        self.duplicate_groups = updated_groups
 
     def _get_current_samples(self) -> List[Dict]:
         """Get samples from the current view."""
@@ -1622,6 +1779,24 @@ class MetadataArchitectDialog(ctk.CTkToplevel):
             return self.sample_list.filtered_samples
         # Fallback: get all samples from DB
         return self.db.get_samples_for_duplicate_check()
+
+    def destroy(self):
+        """Clean up resources before destroying the dialog.
+
+        Memory cleanup: Clear large data structures to help garbage collection.
+        """
+        # Clear cached duplicate data to free memory
+        self.duplicate_groups = []
+        self.rename_previews = []
+        # Clear lazy loading state
+        if hasattr(self, '_load_more_frame'):
+            self._load_more_frame = None
+        # Clear references
+        self.sample_list = None
+        self.rule_engine = None
+        self.duplicate_finder = None
+        self.db = None
+        super().destroy()
 
 
 class AddRuleDialog(ctk.CTkToplevel):
@@ -1642,10 +1817,7 @@ class AddRuleDialog(ctk.CTkToplevel):
         self.transient(parent)
         self.grab_set()
 
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - 480) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - 450) // 2
-        self.geometry(f"+{x}+{y}")
+        _center_dialog_on_parent(self, parent, 480, 450)
 
         self._build_ui()
 
@@ -1670,22 +1842,8 @@ class AddRuleDialog(ctk.CTkToplevel):
             text_color=COLORS['fg']
         ).pack(anchor="w", pady=(8, SPACING['md']))
 
-        # Rule name
-        ctk.CTkLabel(
-            form, text="Rule Name",
-            font=ctk.CTkFont(size=12),
-            text_color=COLORS['fg_secondary']
-        ).pack(anchor="w")
-
-        self.name_entry = ctk.CTkEntry(
-            form,
-            font=ctk.CTkFont(size=13),
-            fg_color=COLORS['bg_hover'],
-            border_width=0,
-            height=36,
-            placeholder_text="My Rule"
-        )
-        self.name_entry.pack(fill="x", pady=(4, SPACING['sm']))
+        # Rule name - use helper function
+        _, self.name_entry = _create_labeled_entry(form, "Rule Name", placeholder="My Rule")
 
         # Condition field
         ctk.CTkLabel(
@@ -1729,70 +1887,24 @@ class AddRuleDialog(ctk.CTkToplevel):
         )
         op_menu.pack(anchor="w", pady=(4, SPACING['sm']))
 
-        # Value
-        ctk.CTkLabel(
-            form, text="Value to match",
-            font=ctk.CTkFont(size=12),
-            text_color=COLORS['fg_secondary']
-        ).pack(anchor="w")
-
-        self.value_entry = ctk.CTkEntry(
-            form,
-            font=ctk.CTkFont(size=13),
-            fg_color=COLORS['bg_hover'],
-            border_width=0,
-            height=36,
-            placeholder_text="e.g., kick, 808, minor"
+        # Value - use helper function
+        _, self.value_entry = _create_labeled_entry(
+            form, "Value to match", placeholder="e.g., kick, 808, minor"
         )
-        self.value_entry.pack(fill="x", pady=(4, SPACING['sm']))
 
-        # Tags to add
-        ctk.CTkLabel(
-            form, text="Tags to add (comma-separated)",
-            font=ctk.CTkFont(size=12),
-            text_color=COLORS['fg_secondary']
-        ).pack(anchor="w")
-
-        self.tags_entry = ctk.CTkEntry(
-            form,
-            font=ctk.CTkFont(size=13),
-            fg_color=COLORS['bg_hover'],
-            border_width=0,
-            height=36,
-            placeholder_text="e.g., drums, percussion"
+        # Tags to add - use helper function
+        _, self.tags_entry = _create_labeled_entry(
+            form, "Tags to add (comma-separated)", placeholder="e.g., drums, percussion"
         )
-        self.tags_entry.pack(fill="x", pady=(4, SPACING['md']))
 
         # Buttons (fixed at bottom, outside scroll)
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.grid(row=1, column=0, sticky="ew", padx=12, pady=(6, 12))
 
-        cancel_btn = ctk.CTkButton(
-            btn_frame,
-            text="Cancel",
-            font=ctk.CTkFont(size=13),
-            fg_color=COLORS['bg_hover'],
-            hover_color=COLORS['bg_card'],
-            text_color=COLORS['fg'],
-            width=90,
-            height=36,
-            corner_radius=6,
-            command=self.destroy
-        )
+        cancel_btn = _create_action_button(btn_frame, "Cancel", self.destroy, primary=False, width=90)
         cancel_btn.pack(side="right", padx=(SPACING['sm'], 0))
 
-        save_btn = ctk.CTkButton(
-            btn_frame,
-            text="Save Rule",
-            font=ctk.CTkFont(size=13, weight="bold"),
-            fg_color=COLORS['accent'],
-            hover_color=COLORS['accent_hover'],
-            text_color="white",
-            width=100,
-            height=36,
-            corner_radius=6,
-            command=self._save_rule
-        )
+        save_btn = _create_action_button(btn_frame, "Save Rule", self._save_rule, primary=True)
         save_btn.pack(side="right")
 
         self.bind("<Escape>", lambda e: self.destroy())
@@ -1837,10 +1949,7 @@ class ResultDialog(ctk.CTkToplevel):
         self.transient(parent)
         self.grab_set()
 
-        self.update_idletasks()
-        x = parent.winfo_rootx() + (parent.winfo_width() - 350) // 2
-        y = parent.winfo_rooty() + (parent.winfo_height() - 180) // 2
-        self.geometry(f"+{x}+{y}")
+        _center_dialog_on_parent(self, parent, 350, 180)
 
         ctk.CTkLabel(
             self,

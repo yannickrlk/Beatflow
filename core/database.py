@@ -26,13 +26,27 @@ class DatabaseManager:
         self._init_db()
 
     def _get_connection(self) -> sqlite3.Connection:
-        """Get or create database connection."""
+        """Get or create database connection with optimized settings."""
         if self._conn is None:
             self._conn = sqlite3.connect(
                 self.db_path,
                 check_same_thread=False  # Allow sharing across threads
             )
             self._conn.row_factory = sqlite3.Row  # Enable dict-like access
+
+            # Performance optimizations
+            cursor = self._conn.cursor()
+            # WAL mode: allows concurrent reads while writing, faster for GUI apps
+            cursor.execute('PRAGMA journal_mode=WAL')
+            # Synchronous NORMAL: good balance of safety and speed
+            cursor.execute('PRAGMA synchronous=NORMAL')
+            # Memory-mapped I/O: faster reads for databases up to this size (64MB)
+            cursor.execute('PRAGMA mmap_size=67108864')
+            # Cache size: 2000 pages (~8MB with 4KB pages)
+            cursor.execute('PRAGMA cache_size=-8000')
+            # Temp store in memory for faster temp table operations
+            cursor.execute('PRAGMA temp_store=MEMORY')
+
         return self._conn
 
     def _init_db(self):
@@ -65,10 +79,19 @@ class DatabaseManager:
             )
         ''')
 
-        # Create index for faster folder queries
+        # Create index for faster folder queries (path is PRIMARY KEY, so already indexed)
+        # Note: PRIMARY KEY creates an implicit index, but we add explicit indexes for other columns
+
+        # Index for favorite queries
         cursor.execute('''
-            CREATE INDEX IF NOT EXISTS idx_samples_folder
-            ON samples(path)
+            CREATE INDEX IF NOT EXISTS idx_samples_favorite
+            ON samples(is_favorite)
+        ''')
+
+        # Index for filename searches and sorting
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_samples_filename
+            ON samples(filename)
         ''')
 
         # Migration: Add is_favorite column if it doesn't exist
@@ -104,6 +127,12 @@ class DatabaseManager:
                 FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE,
                 FOREIGN KEY (sample_path) REFERENCES samples(path) ON DELETE CASCADE
             )
+        ''')
+
+        # Index for collection_samples by sample_path (for reverse lookups)
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_collection_samples_path
+            ON collection_samples(sample_path)
         ''')
 
         # Create recent_samples table for tracking recently played
@@ -145,6 +174,12 @@ class DatabaseManager:
         cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_sample_tags_tag
             ON sample_tags(tag)
+        ''')
+
+        # Index for sample_tags by sample_path (for JOIN performance)
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_sample_tags_path
+            ON sample_tags(sample_path)
         ''')
 
         # Create rename_history table for undo support
@@ -606,31 +641,6 @@ class DatabaseManager:
         cursor.execute('SELECT COUNT(*) FROM samples WHERE is_favorite = 1')
         return cursor.fetchone()[0]
 
-    def get_folder_sample_count(self, folder_path: str) -> int:
-        """
-        Get the count of cached samples in a folder (fast, from database).
-
-        Args:
-            folder_path: Path to the folder.
-
-        Returns:
-            Number of samples in the folder that are in the cache.
-        """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        # Use LIKE with folder prefix to match samples in this folder (not subfolders)
-        # Normalize path separators
-        folder_path = folder_path.replace('\\', '/')
-        if not folder_path.endswith('/'):
-            folder_path += '/'
-        # Match files directly in folder (not in subfolders)
-        cursor.execute('''
-            SELECT COUNT(*) FROM samples
-            WHERE REPLACE(path, '\\', '/') LIKE ?
-            AND REPLACE(path, '\\', '/') NOT LIKE ?
-        ''', (folder_path + '%', folder_path + '%/%'))
-        return cursor.fetchone()[0]
-
     def is_favorite(self, path: str) -> bool:
         """
         Check if a sample is marked as favorite.
@@ -687,11 +697,73 @@ class DatabaseManager:
 
         return cursor.fetchone()[0]
 
+    def get_batch_folder_sample_counts(self, folder_paths: List[str]) -> Dict[str, int]:
+        """
+        Get sample counts for multiple folders in a single query (optimized).
+
+        Args:
+            folder_paths: List of folder paths to get counts for.
+
+        Returns:
+            Dictionary mapping folder_path -> sample count.
+        """
+        if not folder_paths:
+            return {}
+
+        import os
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        sep = os.sep
+
+        # Initialize all counts to 0
+        results = {p: 0 for p in folder_paths}
+
+        # For efficiency, fetch all samples that could match any of these folders
+        # and count them in Python (avoids N separate queries)
+        if len(folder_paths) <= 50:
+            # For small batches, use OR conditions
+            conditions = []
+            params = []
+            for folder_path in folder_paths:
+                pattern = folder_path + sep + '%'
+                exclude_pattern = folder_path + sep + '%' + sep + '%'
+                conditions.append('(path LIKE ? AND path NOT LIKE ?)')
+                params.extend([pattern, exclude_pattern])
+
+            if conditions:
+                query = f'SELECT path FROM samples WHERE {" OR ".join(conditions)}'
+                cursor.execute(query, params)
+                rows = cursor.fetchall()
+
+                # Count by folder
+                for row in rows:
+                    sample_path = row['path']
+                    parent_dir = os.path.dirname(sample_path)
+                    if parent_dir in results:
+                        results[parent_dir] += 1
+        else:
+            # For large batches, query each folder (still better than N separate connections)
+            for folder_path in folder_paths:
+                pattern = folder_path + sep + '%'
+                exclude_pattern = folder_path + sep + '%' + sep + '%'
+                cursor.execute('''
+                    SELECT COUNT(*) FROM samples
+                    WHERE path LIKE ?
+                    AND path NOT LIKE ?
+                ''', (pattern, exclude_pattern))
+                results[folder_path] = cursor.fetchone()[0]
+
+        return results
+
     # ==================== Global Search Methods ====================
 
     def search_samples(self, query: str, limit: int = 500) -> List[Dict]:
         """
         Search for samples across the entire library.
+
+        Uses a prioritized search strategy:
+        1. First searches indexed filename column (fast)
+        2. Then searches other metadata fields
 
         Args:
             query: Search query string.
@@ -707,27 +779,29 @@ class DatabaseManager:
         cursor = conn.cursor()
 
         # Prepare search pattern
-        search_pattern = f'%{query.strip()}%'
+        search_term = query.strip()
+        search_pattern = f'%{search_term}%'
 
-        # Search across multiple fields
+        # Use UNION to prioritize filename matches (indexed) over other fields
+        # This allows SQLite to use the filename index for the first query
         cursor.execute('''
-            SELECT * FROM samples
-            WHERE filename LIKE ?
-               OR title LIKE ?
-               OR artist LIKE ?
-               OR album LIKE ?
-               OR genre LIKE ?
-               OR name LIKE ?
-               OR bpm LIKE ?
-               OR key LIKE ?
-               OR detected_bpm LIKE ?
-               OR detected_key LIKE ?
-            ORDER BY filename ASC
+            SELECT * FROM (
+                SELECT *, 1 as match_priority FROM samples
+                WHERE filename LIKE ?
+                UNION ALL
+                SELECT *, 2 as match_priority FROM samples
+                WHERE filename NOT LIKE ?
+                AND (title LIKE ? OR artist LIKE ? OR album LIKE ?
+                     OR genre LIKE ? OR name LIKE ? OR bpm LIKE ?
+                     OR key LIKE ? OR detected_bpm LIKE ? OR detected_key LIKE ?)
+            )
+            ORDER BY match_priority, filename ASC
             LIMIT ?
-        ''', (search_pattern,) * 10 + (limit,))
+        ''', (search_pattern, search_pattern) + (search_pattern,) * 9 + (limit,))
 
         rows = cursor.fetchall()
-        return [dict(row) for row in rows]
+        # Remove the match_priority column from results
+        return [{k: v for k, v in dict(row).items() if k != 'match_priority'} for row in rows]
 
     # ==================== Audio Analysis Methods ====================
 
@@ -748,6 +822,31 @@ class DatabaseManager:
             SET detected_bpm = ?, detected_key = ?, analysis_date = ?
             WHERE path = ?
         ''', (detected_bpm, detected_key, time.time(), path))
+        conn.commit()
+
+    def update_analysis_batch(self, analyses: List[tuple]):
+        """
+        Batch update analysis results for multiple samples.
+
+        Args:
+            analyses: List of (path, detected_bpm, detected_key) tuples.
+        """
+        if not analyses:
+            return
+
+        import time
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        analysis_time = time.time()
+
+        # Prepare data with timestamp
+        data = [(bpm, key, analysis_time, path) for path, bpm, key in analyses]
+
+        cursor.executemany('''
+            UPDATE samples
+            SET detected_bpm = ?, detected_key = ?, analysis_date = ?
+            WHERE path = ?
+        ''', data)
         conn.commit()
 
     def get_analysis(self, path: str) -> Optional[Dict]:
@@ -946,6 +1045,33 @@ class DatabaseManager:
             return True
         except sqlite3.IntegrityError:
             return False  # Already in collection
+
+    def add_to_collection_batch(self, collection_id: int, sample_paths: List[str]) -> int:
+        """
+        Add multiple samples to a collection in a single transaction.
+
+        Args:
+            collection_id: The collection ID.
+            sample_paths: List of paths to sample files.
+
+        Returns:
+            Number of samples successfully added.
+        """
+        if not sample_paths:
+            return 0
+
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        data = [(collection_id, path) for path in sample_paths]
+
+        # Use INSERT OR IGNORE to skip duplicates
+        cursor.executemany(
+            'INSERT OR IGNORE INTO collection_samples (collection_id, sample_path) VALUES (?, ?)',
+            data
+        )
+        conn.commit()
+        return cursor.rowcount
 
     def remove_from_collection(self, collection_id: int, sample_path: str) -> bool:
         """
@@ -1248,6 +1374,34 @@ class DatabaseManager:
             return True
         except sqlite3.IntegrityError:
             return False
+
+    def add_sample_tags_batch(self, tags_data: List[tuple], source: str = 'rule') -> int:
+        """
+        Batch add tags to multiple samples (optimized for applying tagging rules).
+
+        Args:
+            tags_data: List of (sample_path, tag) tuples.
+            source: Source of the tags ('manual', 'rule', 'extracted').
+
+        Returns:
+            Number of tags successfully added.
+        """
+        if not tags_data:
+            return 0
+
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        # Prepare data with normalized tags
+        data = [(path, tag.strip().lower(), source) for path, tag in tags_data]
+
+        # Use INSERT OR IGNORE to skip duplicates without errors
+        cursor.executemany(
+            'INSERT OR IGNORE INTO sample_tags (sample_path, tag, source) VALUES (?, ?, ?)',
+            data
+        )
+        conn.commit()
+        return cursor.rowcount
 
     def remove_sample_tag(self, sample_path: str, tag: str) -> bool:
         """Remove a tag from a sample."""

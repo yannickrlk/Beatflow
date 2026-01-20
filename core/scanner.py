@@ -130,13 +130,19 @@ class LibraryScanner:
 
     @classmethod
     def get_subfolders(cls, folder_path: str) -> List[str]:
-        """Get immediate subfolders of a folder."""
+        """Get immediate subfolders of a folder.
+
+        Uses os.scandir() for better performance - avoids extra stat() calls
+        that os.listdir() + os.path.isdir() would require.
+        """
         subfolders = []
         try:
-            for item in sorted(os.listdir(folder_path)):
-                item_path = os.path.join(folder_path, item)
-                if os.path.isdir(item_path):
-                    subfolders.append(item_path)
+            with os.scandir(folder_path) as entries:
+                for entry in entries:
+                    # entry.is_dir() is cached from the scandir call (no extra stat)
+                    if entry.is_dir() and not entry.name.startswith('.'):
+                        subfolders.append(entry.path)
+            subfolders.sort()  # Sort alphabetically
         except (PermissionError, OSError):
             pass
         return subfolders

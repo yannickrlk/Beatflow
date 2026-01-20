@@ -19,12 +19,15 @@ from ui.sidebar import Sidebar
 from ui.tree_view import LibraryTreeView
 from ui.library import SampleList
 from ui.player import FooterPlayer
-from ui.dialogs import MetadataEditDialog, NewCollectionDialog, AddToCollectionDialog, SettingsDialog, MetadataArchitectDialog
-from ui.network_view import ClientsView
-from ui.tasks_view import TasksView
-from ui.business_view import BusinessView
+# STARTUP OPTIMIZATION: Dialogs imported lazily when needed
+# from ui.dialogs import MetadataEditDialog, NewCollectionDialog, AddToCollectionDialog, SettingsDialog, MetadataArchitectDialog
+# STARTUP OPTIMIZATION: Secondary views imported lazily when first accessed
+# from ui.network_view import ClientsView
+# from ui.tasks_view import TasksView
+# from ui.business_view import BusinessView
 from core.config import ConfigManager
-from core.scanner import LibraryScanner
+# STARTUP OPTIMIZATION: Scanner imported lazily when needed
+# from core.scanner import LibraryScanner
 from core.database import get_database
 
 
@@ -189,17 +192,38 @@ class ProducerOSApp(ProducerOSAppBase):
         # Set initial volume from config
         self.player.set_volume(self.config_manager.volume)
 
-        # ==================== Network View ====================
-        self.network_view = ClientsView(self)  # Network view (contacts/collaborators)
-        # Initially hidden - don't grid it yet
+        # ==================== STARTUP OPTIMIZATION ====================
+        # Secondary views are created lazily on first access
+        # This significantly reduces startup time by deferring heavy imports
+        self._network_view = None   # Lazy: ClientsView
+        self._tasks_view = None     # Lazy: TasksView
+        self._business_view = None  # Lazy: BusinessView
 
-        # ==================== Tasks View (Studio Flow) ====================
-        self.tasks_view = TasksView(self)  # Task management
-        # Initially hidden - don't grid it yet
+    # ==================== Lazy View Properties ====================
 
-        # ==================== Business View ====================
-        self.business_view = BusinessView(self)  # Finance & invoices
-        # Initially hidden - don't grid it yet
+    @property
+    def network_view(self):
+        """Lazily create and return the network view."""
+        if self._network_view is None:
+            from ui.network_view import ClientsView
+            self._network_view = ClientsView(self)
+        return self._network_view
+
+    @property
+    def tasks_view(self):
+        """Lazily create and return the tasks view."""
+        if self._tasks_view is None:
+            from ui.tasks_view import TasksView
+            self._tasks_view = TasksView(self)
+        return self._tasks_view
+
+    @property
+    def business_view(self):
+        """Lazily create and return the business view."""
+        if self._business_view is None:
+            from ui.business_view import BusinessView
+            self._business_view = BusinessView(self)
+        return self._business_view
 
     def _build_topbar(self):
         """Build the top bar with search and actions."""
@@ -441,10 +465,13 @@ class ProducerOSApp(ProducerOSAppBase):
 
     def _show_browse_view(self):
         """Show the sample browser view."""
-        # Hide other views
-        self.network_view.grid_remove()
-        self.tasks_view.grid_remove()
-        self.business_view.grid_remove()
+        # Hide other views (only if they exist - lazy initialization)
+        if self._network_view is not None:
+            self._network_view.grid_remove()
+        if self._tasks_view is not None:
+            self._tasks_view.grid_remove()
+        if self._business_view is not None:
+            self._business_view.grid_remove()
 
         # Show browse components
         self.topbar.grid(row=0, column=1, columnspan=2, sticky="ew")
@@ -459,10 +486,13 @@ class ProducerOSApp(ProducerOSAppBase):
         self.tree_view.grid_remove()
         self.sample_list.grid_remove()
         self.player.grid_remove()
-        self.tasks_view.grid_remove()
-        self.business_view.grid_remove()
+        if self._tasks_view is not None:
+            self._tasks_view.grid_remove()
+        if self._business_view is not None:
+            self._business_view.grid_remove()
 
         # Show network view (spans columns 1-2, rows 0-2)
+        # This triggers lazy creation via property if first access
         self.network_view.grid(row=0, column=1, columnspan=2, rowspan=3, sticky="nsew")
 
     def _show_tasks_view(self):
@@ -472,10 +502,13 @@ class ProducerOSApp(ProducerOSAppBase):
         self.tree_view.grid_remove()
         self.sample_list.grid_remove()
         self.player.grid_remove()
-        self.network_view.grid_remove()
-        self.business_view.grid_remove()
+        if self._network_view is not None:
+            self._network_view.grid_remove()
+        if self._business_view is not None:
+            self._business_view.grid_remove()
 
         # Show tasks view (spans columns 1-2, rows 0-2)
+        # This triggers lazy creation via property if first access
         self.tasks_view.grid(row=0, column=1, columnspan=2, rowspan=3, sticky="nsew")
         self.tasks_view.refresh()
 
@@ -486,10 +519,13 @@ class ProducerOSApp(ProducerOSAppBase):
         self.tree_view.grid_remove()
         self.sample_list.grid_remove()
         self.player.grid_remove()
-        self.network_view.grid_remove()
-        self.tasks_view.grid_remove()
+        if self._network_view is not None:
+            self._network_view.grid_remove()
+        if self._tasks_view is not None:
+            self._tasks_view.grid_remove()
 
         # Show business view (spans columns 1-2, rows 0-2)
+        # This triggers lazy creation via property if first access
         self.business_view.grid(row=0, column=1, columnspan=2, rowspan=3, sticky="nsew")
         self.business_view.refresh()
 
@@ -503,6 +539,8 @@ class ProducerOSApp(ProducerOSAppBase):
 
     def _on_create_collection(self):
         """Handle create collection request."""
+        from ui.dialogs import NewCollectionDialog
+
         def on_create(name):
             db = get_database()
             collection_id = db.create_collection(name)
@@ -518,6 +556,8 @@ class ProducerOSApp(ProducerOSAppBase):
 
     def _on_add_to_collection(self, sample):
         """Handle add to collection request."""
+        from ui.dialogs import NewCollectionDialog, AddToCollectionDialog
+
         db = get_database()
         collections = db.get_collections()
 
@@ -587,6 +627,9 @@ class ProducerOSApp(ProducerOSAppBase):
 
     def _on_edit_request(self, sample, row):
         """Handle metadata edit request from sample list."""
+        from ui.dialogs import MetadataEditDialog
+        from core.scanner import LibraryScanner
+
         def on_save(new_metadata):
             import pygame
 
@@ -661,10 +704,13 @@ class ProducerOSApp(ProducerOSAppBase):
 
     def _open_settings(self):
         """Open the settings dialog."""
+        from ui.dialogs import SettingsDialog
         SettingsDialog(self, self.config_manager)
 
     def _open_metadata_architect(self):
         """Open the Metadata Architect dialog."""
+        from ui.dialogs import MetadataArchitectDialog
+
         def on_refresh():
             # Refresh sample list if a folder is loaded
             if hasattr(self.sample_list, 'current_path') and self.sample_list.current_path:

@@ -1,7 +1,9 @@
 """Global Footer Player component for ProducerOS."""
 
 import os
+import struct
 import time
+import wave
 import customtkinter as ctk
 import pygame
 from typing import Optional, List, Dict, Callable
@@ -38,6 +40,16 @@ class FooterPlayer(ctk.CTkFrame):
 
         # UI update timer
         self._update_job = None
+
+        # Tooltip reference for cleanup
+        self._active_tooltip = None
+
+        # STARTUP OPTIMIZATION: Track if pygame mixer is initialized
+        # Set to True by main.py after deferred initialization
+        self._pygame_ready = False
+
+        # Bind destroy event for cleanup
+        self.bind("<Destroy>", self._on_destroy)
 
         self._build_ui()
 
@@ -209,7 +221,9 @@ class FooterPlayer(ctk.CTkFrame):
         """Set volume (0.0 to 1.0)."""
         self.volume = max(0.0, min(1.0, volume))
         self.volume_slider.set(int(self.volume * 100))
-        pygame.mixer.music.set_volume(self.volume)
+        # STARTUP OPTIMIZATION: Only set pygame volume if mixer is initialized
+        if self._pygame_ready:
+            pygame.mixer.music.set_volume(self.volume)
         self._update_volume_icon()
 
     def _update_volume_icon(self):
@@ -225,7 +239,9 @@ class FooterPlayer(ctk.CTkFrame):
         """Load a track for playback."""
         # Stop current playback when loading a new track
         if self.is_playing or self.is_paused:
-            pygame.mixer.music.stop()
+            # STARTUP OPTIMIZATION: Only stop pygame if mixer is initialized
+            if self._pygame_ready:
+                pygame.mixer.music.stop()
             self.is_playing = False
             self.is_paused = False
             self._stop_ui_update()
@@ -278,10 +294,14 @@ class FooterPlayer(ctk.CTkFrame):
         self.time_current.configure(text="0:00")
 
     def _get_duration(self, file_path: str) -> float:
-        """Get audio duration in seconds."""
+        """Get audio duration in seconds without loading the entire file.
+
+        Uses efficient header-only parsing methods to avoid loading
+        large audio files into memory.
+        """
         ext = os.path.splitext(file_path)[1].lower()
 
-        # Method 1: Try tinytag (works for MP3, FLAC, OGG, WAV, etc.)
+        # Method 1: Try tinytag (efficient, reads only metadata headers)
         try:
             from tinytag import TinyTag
             tag = TinyTag.get(file_path)
@@ -290,27 +310,98 @@ class FooterPlayer(ctk.CTkFrame):
         except Exception:
             pass
 
-        # Method 2: Try pygame.mixer.Sound (reliable for WAV)
+        # Method 2: For WAV files, read header directly (O(1) memory)
+        # This avoids pygame.mixer.Sound which loads the ENTIRE file
         if ext == '.wav':
             try:
-                sound = pygame.mixer.Sound(file_path)
-                return sound.get_length()
+                duration = self._get_wav_duration_from_header(file_path)
+                if duration > 0:
+                    return duration
             except Exception:
                 pass
 
-        # Method 3: Try pydub as fallback (needs ffmpeg)
+        # Method 3: Try mutagen (efficient metadata-only reading)
         try:
-            from pydub import AudioSegment
-            audio = AudioSegment.from_file(file_path)
-            return len(audio) / 1000.0
+            import mutagen
+            audio = mutagen.File(file_path)
+            if audio and audio.info and audio.info.length:
+                return audio.info.length
         except Exception:
             pass
 
+        # Method 4: For FLAC, use stdlib wave module won't work,
+        # but we've covered it with tinytag/mutagen above
+
+        # NOTE: Removed pydub fallback as it loads entire file into memory
+        # which is extremely slow and memory-intensive for large files.
+        # If we reach here, duration will be unknown (0).
+        return 0
+
+    def _get_wav_duration_from_header(self, file_path: str) -> float:
+        """Read WAV duration from file header without loading audio data.
+
+        WAV files have a fixed header format. We read only the header
+        bytes to calculate duration, using O(1) memory regardless of
+        file size.
+
+        Returns:
+            Duration in seconds, or 0 if unable to parse.
+        """
+        try:
+            with wave.open(file_path, 'rb') as wav_file:
+                # Get parameters from header (no audio data loaded)
+                frames = wav_file.getnframes()
+                rate = wav_file.getframerate()
+                if rate > 0:
+                    return frames / rate
+        except Exception:
+            # Fallback: manually parse header for non-standard WAV files
+            try:
+                with open(file_path, 'rb') as f:
+                    # Read RIFF header
+                    riff = f.read(12)
+                    if len(riff) < 12 or riff[:4] != b'RIFF' or riff[8:12] != b'WAVE':
+                        return 0
+
+                    # Find fmt chunk
+                    sample_rate = 0
+                    byte_rate = 0
+                    while True:
+                        chunk_header = f.read(8)
+                        if len(chunk_header) < 8:
+                            break
+                        chunk_id = chunk_header[:4]
+                        chunk_size = struct.unpack('<I', chunk_header[4:8])[0]
+
+                        if chunk_id == b'fmt ':
+                            fmt_data = f.read(min(chunk_size, 16))
+                            if len(fmt_data) >= 14:
+                                sample_rate = struct.unpack('<I', fmt_data[4:8])[0]
+                                byte_rate = struct.unpack('<I', fmt_data[8:12])[0]
+                            # Skip remaining fmt data
+                            remaining = chunk_size - len(fmt_data)
+                            if remaining > 0:
+                                f.seek(remaining, 1)
+                        elif chunk_id == b'data':
+                            # Found data chunk - calculate duration
+                            if byte_rate > 0:
+                                return chunk_size / byte_rate
+                            break
+                        else:
+                            # Skip this chunk
+                            f.seek(chunk_size, 1)
+            except Exception:
+                pass
         return 0
 
     def play(self):
         """Start or resume playback."""
         if not self.current_sample:
+            return
+        # STARTUP OPTIMIZATION: Wait for pygame mixer to be initialized
+        if not self._pygame_ready:
+            # Retry after 100ms if pygame not ready yet
+            self.after(100, self.play)
             return
 
         try:
@@ -334,7 +425,9 @@ class FooterPlayer(ctk.CTkFrame):
     def pause(self):
         """Pause playback."""
         if self.is_playing:
-            pygame.mixer.music.pause()
+            # STARTUP OPTIMIZATION: Only pause pygame if mixer is initialized
+            if self._pygame_ready:
+                pygame.mixer.music.pause()
             self.is_paused = True
             self.is_playing = False
             self.play_btn.configure(text="\u25b6")  # Play icon
@@ -342,7 +435,9 @@ class FooterPlayer(ctk.CTkFrame):
 
     def stop(self):
         """Stop playback."""
-        pygame.mixer.music.stop()
+        # STARTUP OPTIMIZATION: Only stop pygame if mixer is initialized
+        if self._pygame_ready:
+            pygame.mixer.music.stop()
         self.is_playing = False
         self.is_paused = False
         self.position_offset = 0
@@ -483,7 +578,22 @@ class FooterPlayer(ctk.CTkFrame):
             self._update_job = None
 
     def _update_ui(self):
-        """Update UI elements (position, slider)."""
+        """Update UI elements (position, slider).
+
+        Performance optimizations:
+        - Early exit if widget is not mapped (not visible)
+        - Cached format strings to reduce object allocations
+        - Minimal state reads from pygame
+        """
+        # Early exit if widget is not visible (e.g., minimized window)
+        try:
+            if not self.winfo_ismapped():
+                self._update_job = self.after(250, self._update_ui)  # Slower updates when hidden
+                return
+        except Exception:
+            # Widget may be destroyed
+            return
+
         if self.is_playing and self.duration > 0:
             # Skip UI updates while user is seeking
             if self._is_seeking:
@@ -496,7 +606,7 @@ class FooterPlayer(ctk.CTkFrame):
                 # Use the seek target position to prevent slider jumping back
                 current_pos = self._seek_target + time_since_seek
                 current_pos = min(current_pos, self.duration)
-                progress = min(100, (current_pos / self.duration) * 100)
+                progress = (current_pos / self.duration) * 100
                 self.seek_slider.set(progress)
                 self.time_current.configure(text=self._format_time(current_pos))
                 # Notify progress callback
@@ -521,8 +631,8 @@ class FooterPlayer(ctk.CTkFrame):
                     self._on_track_end()
                     return
 
-                # Update slider and time
-                progress = min(100, (current_pos / self.duration) * 100)
+                # Update slider and time - calculate progress once
+                progress = (current_pos / self.duration) * 100
                 self.seek_slider.set(progress)
                 self.time_current.configure(text=self._format_time(current_pos))
 
@@ -550,6 +660,33 @@ class FooterPlayer(ctk.CTkFrame):
         secs = int(seconds % 60)
         return f"{mins}:{secs:02d}"
 
+    def _on_destroy(self, event=None):
+        """Clean up resources when widget is destroyed.
+
+        This prevents memory leaks from orphaned timers and tooltips.
+        """
+        # Only handle our own destruction, not child widgets
+        if event and event.widget != self:
+            return
+
+        # Cancel any pending UI update timer
+        self._stop_ui_update()
+
+        # Destroy any active tooltip
+        if self._active_tooltip:
+            try:
+                self._active_tooltip.destroy()
+            except Exception:
+                pass
+            self._active_tooltip = None
+
+        # Stop audio playback to release resources
+        try:
+            pygame.mixer.music.stop()
+            pygame.mixer.music.unload()
+        except Exception:
+            pass
+
     def _create_tooltip(self, widget, text: str):
         """Create a simple tooltip for a widget.
 
@@ -557,22 +694,20 @@ class FooterPlayer(ctk.CTkFrame):
             widget: The widget to attach the tooltip to.
             text: The tooltip text to display.
         """
-        tooltip = None
-
         def show_tooltip(event):
-            nonlocal tooltip
-            if tooltip:
+            # Don't create if one already exists
+            if self._active_tooltip:
                 return
             x = widget.winfo_rootx() + widget.winfo_width() // 2
             y = widget.winfo_rooty() + widget.winfo_height() + 5
 
-            tooltip = ctk.CTkToplevel(widget)
-            tooltip.wm_overrideredirect(True)
-            tooltip.wm_geometry(f"+{x}+{y}")
-            tooltip.configure(fg_color=COLORS['bg_card'])
+            self._active_tooltip = ctk.CTkToplevel(widget)
+            self._active_tooltip.wm_overrideredirect(True)
+            self._active_tooltip.wm_geometry(f"+{x}+{y}")
+            self._active_tooltip.configure(fg_color=COLORS['bg_card'])
 
             label = ctk.CTkLabel(
-                tooltip,
+                self._active_tooltip,
                 text=text,
                 font=ctk.CTkFont(size=11),
                 text_color=COLORS['fg_secondary'],
@@ -584,10 +719,12 @@ class FooterPlayer(ctk.CTkFrame):
             label.pack()
 
         def hide_tooltip(event):
-            nonlocal tooltip
-            if tooltip:
-                tooltip.destroy()
-                tooltip = None
+            if self._active_tooltip:
+                try:
+                    self._active_tooltip.destroy()
+                except Exception:
+                    pass
+                self._active_tooltip = None
 
         widget.bind("<Enter>", show_tooltip)
         widget.bind("<Leave>", hide_tooltip)

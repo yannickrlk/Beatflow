@@ -7,6 +7,8 @@ import tkinter as tk
 import customtkinter as ctk
 from PIL import Image, ImageTk
 import pygame
+from collections import deque
+from typing import Optional, List, Dict, Callable
 from ui.theme import COLORS, SPACING, SIZING, FONTS
 from core.scanner import LibraryScanner
 from core.waveform import generate_waveform_image
@@ -19,6 +21,90 @@ try:
     ANALYZER_AVAILABLE = AudioAnalyzer.is_available()
 except ImportError:
     ANALYZER_AVAILABLE = False
+
+
+# =============================================================================
+# PERFORMANCE: Shared font cache to avoid repeated CTkFont instantiation
+# =============================================================================
+class FontCache:
+    """Cache for CTkFont objects to avoid repeated instantiation."""
+    _cache: Dict[tuple, ctk.CTkFont] = {}
+
+    @classmethod
+    def get(cls, size: int = 12, weight: str = "normal", family: str = None) -> ctk.CTkFont:
+        """Get or create a cached font."""
+        key = (size, weight, family)
+        if key not in cls._cache:
+            if family:
+                cls._cache[key] = ctk.CTkFont(family=family, size=size, weight=weight)
+            else:
+                cls._cache[key] = ctk.CTkFont(size=size, weight=weight)
+        return cls._cache[key]
+
+
+# =============================================================================
+# PERFORMANCE: Waveform loading queue with concurrency control
+# =============================================================================
+class WaveformLoadQueue:
+    """Manages waveform loading with limited concurrent threads."""
+    _instance = None
+    MAX_CONCURRENT = 3  # Max simultaneous waveform loads
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+
+    def __init__(self):
+        if self._initialized:
+            return
+        self._initialized = True
+        self._queue: deque = deque()
+        self._active_count = 0
+        self._lock = threading.Lock()
+
+    def enqueue(self, sample_path: str, callback: Callable, width: int, height: int):
+        """Add a waveform load request to the queue."""
+        with self._lock:
+            self._queue.append((sample_path, callback, width, height))
+            self._try_process_next()
+
+    def _try_process_next(self):
+        """Process next item if under concurrency limit."""
+        while self._active_count < self.MAX_CONCURRENT and self._queue:
+            self._active_count += 1
+            item = self._queue.popleft()
+            thread = threading.Thread(target=self._process_item, args=item, daemon=True)
+            thread.start()
+
+    def _process_item(self, sample_path: str, callback: Callable, width: int, height: int):
+        """Load waveform and invoke callback."""
+        try:
+            gray_img = generate_waveform_image(
+                sample_path, width=width, height=height, color=COLORS['fg_muted']
+            )
+            accent_img = generate_waveform_image(
+                sample_path, width=width, height=height, color=COLORS['accent']
+            )
+            if gray_img and accent_img:
+                callback(gray_img, accent_img)
+        except Exception as e:
+            print(f"Waveform error: {e}")
+        finally:
+            with self._lock:
+                self._active_count -= 1
+                self._try_process_next()
+
+    def clear(self):
+        """Clear pending queue (e.g., when changing folders)."""
+        with self._lock:
+            self._queue.clear()
+
+
+def get_waveform_queue() -> WaveformLoadQueue:
+    """Get the singleton waveform load queue."""
+    return WaveformLoadQueue()
 
 
 class SampleRow(ctk.CTkFrame):
@@ -75,13 +161,21 @@ class SampleRow(ctk.CTkFrame):
 
     def _build_ui(self):
         """Build the sample row UI."""
+        # PERFORMANCE: Use cached fonts instead of creating new CTkFont objects
+        font_14 = FontCache.get(size=14)
+        font_14_bold = FontCache.get(size=14, weight="bold")
+        font_11 = FontCache.get(size=11)
+        font_10 = FontCache.get(size=10)
+        font_12_mono = FontCache.get(size=12, family="Consolas")
+        font_12_mono_bold = FontCache.get(size=12, weight="bold", family="Consolas")
+
         # Play button (circular) - 8px grid spacing
         self.play_btn = ctk.CTkButton(
             self,
             text="\u25b6",
             width=40,  # 8px grid: 40 = 5*8
             height=40,
-            font=ctk.CTkFont(size=14),
+            font=font_14,
             fg_color=COLORS['bg_hover'],
             hover_color=COLORS['accent'],
             corner_radius=20,
@@ -102,7 +196,7 @@ class SampleRow(ctk.CTkFrame):
         name_label = ctk.CTkLabel(
             top_row,
             text=display_name,
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=font_14_bold,
             text_color=COLORS['accent']
         )
         name_label.pack(side="left")
@@ -112,7 +206,7 @@ class SampleRow(ctk.CTkFrame):
         format_badge = ctk.CTkLabel(
             top_row,
             text=f" {ext} ",
-            font=ctk.CTkFont(size=10),
+            font=font_10,
             fg_color=COLORS['bg_hover'],
             corner_radius=4,
             text_color=COLORS['fg_dim']
@@ -124,7 +218,7 @@ class SampleRow(ctk.CTkFrame):
             bitrate_badge = ctk.CTkLabel(
                 top_row,
                 text=f" {self.sample['bitrate']}k ",
-                font=ctk.CTkFont(size=10),
+                font=font_10,
                 fg_color=COLORS['bg_hover'],
                 corner_radius=4,
                 text_color=COLORS['fg_dim']
@@ -137,7 +231,7 @@ class SampleRow(ctk.CTkFrame):
             duration_label = ctk.CTkLabel(
                 top_row,
                 text=duration_str,
-                font=ctk.CTkFont(size=11),
+                font=font_11,
                 text_color=COLORS['fg_dim']
             )
             duration_label.pack(side="left", padx=(10, 0))
@@ -155,7 +249,7 @@ class SampleRow(ctk.CTkFrame):
             folder_label = ctk.CTkLabel(
                 folder_row,
                 text=f"\U0001f4c1 {display_path}",
-                font=ctk.CTkFont(size=10),
+                font=font_10,
                 text_color=COLORS['fg_dim']
             )
             folder_label.pack(side="left")
@@ -177,7 +271,7 @@ class SampleRow(ctk.CTkFrame):
             artist_label = ctk.CTkLabel(
                 self.bottom_row,
                 text=artist_album,
-                font=ctk.CTkFont(size=11),
+                font=font_11,
                 text_color=COLORS['fg_secondary']
             )
             artist_label.pack(side="left", padx=(0, 12))
@@ -204,7 +298,7 @@ class SampleRow(ctk.CTkFrame):
             genre_label = ctk.CTkLabel(
                 self.bottom_row,
                 text=f"#{self.sample['genre']}",
-                font=ctk.CTkFont(size=11),
+                font=font_11,
                 text_color=COLORS['fg_dim']
             )
             genre_label.pack(side="left", padx=(0, 6))
@@ -215,7 +309,7 @@ class SampleRow(ctk.CTkFrame):
             tag_label = ctk.CTkLabel(
                 self.bottom_row,
                 text=f"#{tag}",
-                font=ctk.CTkFont(size=11),
+                font=font_11,
                 text_color=COLORS['fg_dim']
             )
             tag_label.pack(side="left", padx=(0, 6))
@@ -249,7 +343,7 @@ class SampleRow(ctk.CTkFrame):
             text="\u2605" if self.is_favorite else "\u2606",  # Filled or empty star
             width=32,
             height=32,
-            font=ctk.CTkFont(size=16),
+            font=FontCache.get(size=16),
             fg_color="transparent",
             hover_color=COLORS['bg_hover'],
             text_color=COLORS['accent'] if self.is_favorite else COLORS['fg_dim'],
@@ -268,31 +362,25 @@ class SampleRow(ctk.CTkFrame):
         return f"{mins}:{secs:02d}"
 
     def _load_waveform_async(self):
-        """Load waveform images in background thread (gray + accent for SoundCloud-style progress)."""
-        def load():
-            try:
-                # Generate gray waveform (unplayed portion)
-                gray_img = generate_waveform_image(
-                    self.sample['path'],
-                    width=self.WAVEFORM_WIDTH,
-                    height=self.WAVEFORM_HEIGHT,
-                    color=COLORS['fg_muted']
-                )
-                # Generate accent waveform (played portion)
-                accent_img = generate_waveform_image(
-                    self.sample['path'],
-                    width=self.WAVEFORM_WIDTH,
-                    height=self.WAVEFORM_HEIGHT,
-                    color=COLORS['accent']
-                )
-                if gray_img and accent_img:
-                    # Schedule UI update on main thread
-                    self.after(0, lambda: self._set_waveform_images(gray_img, accent_img))
-            except Exception as e:
-                print(f"Waveform error: {e}")
+        """Load waveform images via queue (gray + accent for SoundCloud-style progress).
 
-        thread = threading.Thread(target=load, daemon=True)
-        thread.start()
+        PERFORMANCE: Uses WaveformLoadQueue instead of spawning individual threads.
+        This limits concurrent waveform loads to prevent thread explosion.
+        """
+        def on_waveform_loaded(gray_img, accent_img):
+            # Schedule UI update on main thread
+            try:
+                self.after(0, lambda: self._set_waveform_images(gray_img, accent_img))
+            except Exception:
+                pass  # Widget may have been destroyed
+
+        # Enqueue waveform load instead of spawning thread directly
+        get_waveform_queue().enqueue(
+            self.sample['path'],
+            on_waveform_loaded,
+            self.WAVEFORM_WIDTH,
+            self.WAVEFORM_HEIGHT
+        )
 
     def _set_waveform_images(self, gray_img, accent_img):
         """Set both waveform images and display the gray one initially."""
@@ -540,7 +628,7 @@ class SampleRow(ctk.CTkFrame):
         self.bpm_label = ctk.CTkLabel(
             self.bottom_row,
             text=f"{bpm_icon} {bpm_value}",
-            font=ctk.CTkFont(family="Consolas", size=12),
+            font=FontCache.get(size=12, family="Consolas"),
             text_color=bpm_color
         )
         self.bpm_label.pack(side="left")
@@ -548,7 +636,7 @@ class SampleRow(ctk.CTkFrame):
         self.bpm_unit_label = ctk.CTkLabel(
             self.bottom_row,
             text=" BPM",
-            font=ctk.CTkFont(size=11),
+            font=FontCache.get(size=11),
             text_color=COLORS['fg_dim']
         )
         self.bpm_unit_label.pack(side="left", padx=(0, 2))
@@ -557,7 +645,7 @@ class SampleRow(ctk.CTkFrame):
         self.sync_indicator = ctk.CTkLabel(
             self.bottom_row,
             text="\u21c4",  # ⇄ bidirectional arrow for sync
-            font=ctk.CTkFont(size=10),
+            font=FontCache.get(size=10),
             text_color=COLORS['accent']
         )
         # Don't pack initially - will be shown via show_sync_indicator()
@@ -571,7 +659,7 @@ class SampleRow(ctk.CTkFrame):
         self.key_icon_label = ctk.CTkLabel(
             self.bottom_row,
             text=key_icon_char,
-            font=ctk.CTkFont(size=10),
+            font=FontCache.get(size=10),
             text_color=key_color
         )
         self.key_icon_label.pack(side="left")
@@ -579,7 +667,7 @@ class SampleRow(ctk.CTkFrame):
         self.key_label = ctk.CTkLabel(
             self.bottom_row,
             text=f" {key_value}",
-            font=ctk.CTkFont(family="Consolas", size=12, weight="bold"),
+            font=FontCache.get(size=12, weight="bold", family="Consolas"),
             text_color=key_color
         )
         self.key_label.pack(side="left", padx=(0, SPACING['sm']))
@@ -687,6 +775,19 @@ class SampleList(ctk.CTkFrame):
         self.filter_bpm_max = None  # Max BPM filter
         self.filter_key = None  # Key filter (None = all keys)
         self.filter_formats = set(self.AUDIO_FORMATS)  # Active format filters (all by default)
+
+        # =================================================================
+        # PERFORMANCE: Virtual scrolling state
+        # =================================================================
+        self.ROW_HEIGHT = 66  # Approx height of each row (64 base + 2 padding)
+        self.ROW_HEIGHT_WITH_PATH = 82  # Height when showing folder path
+        self.VISIBLE_BUFFER = 5  # Extra rows above/below viewport
+        self._visible_start = 0  # First visible row index
+        self._visible_end = 0  # Last visible row index
+        self._sample_to_row_map: Dict[str, SampleRow] = {}  # path -> row for O(1) lookup
+        self._last_scroll_pos = 0  # Track scroll position for virtualization
+        self._debounce_timer = None  # For debouncing filter changes
+        self.DEBOUNCE_MS = 150  # Debounce delay for filter input
 
         self._build_ui()
         self._show_empty_state()  # Show empty state initially
@@ -1039,21 +1140,30 @@ class SampleList(ctk.CTkFrame):
             self._refresh_display()
 
     def _matches_search(self, sample: dict, query: str) -> bool:
-        """Check if sample matches search query with fuzzy matching."""
-        # Fields to search in
-        searchable_fields = [
-            sample.get('filename', ''),
-            sample.get('name', ''),
-            sample.get('title', ''),
-            sample.get('artist', ''),
-            sample.get('album', ''),
-            sample.get('genre', ''),
-            sample.get('bpm', ''),
-            sample.get('key', ''),
-        ]
+        """Check if sample matches search query with fuzzy matching.
 
-        # Combine all fields into one searchable string
-        combined = ' '.join(str(f).lower() for f in searchable_fields if f)
+        PERFORMANCE: Uses pre-computed _search_text if available on sample,
+        otherwise computes it on the fly.
+        """
+        # PERFORMANCE: Use pre-computed search text if available
+        if '_search_text' in sample:
+            combined = sample['_search_text']
+        else:
+            # Fields to search in
+            searchable_fields = [
+                sample.get('filename', ''),
+                sample.get('name', ''),
+                sample.get('title', ''),
+                sample.get('artist', ''),
+                sample.get('album', ''),
+                sample.get('genre', ''),
+                sample.get('bpm', ''),
+                sample.get('key', ''),
+            ]
+            # Combine all fields into one searchable string
+            combined = ' '.join(str(f).lower() for f in searchable_fields if f)
+            # Cache for next search
+            sample['_search_text'] = combined
 
         # Split query into words for multi-word search
         query_words = query.split()
@@ -1093,11 +1203,20 @@ class SampleList(ctk.CTkFrame):
         return False
 
     def _refresh_display(self):
-        """Refresh the sample list display based on current filter."""
+        """Refresh the sample list display based on current filter.
+
+        PERFORMANCE: Uses virtual scrolling - only creates visible rows + buffer.
+        For lists < 50 items, renders all (no virtualization overhead).
+        For lists >= 50 items, uses virtualization for smooth scrolling.
+        """
+        # Clear waveform queue when changing folders/filters
+        get_waveform_queue().clear()
+
         # Clear existing rows
         for row in self.sample_rows:
             row.destroy()
         self.sample_rows = []
+        self._sample_to_row_map.clear()
         self.current_playing_row = None
 
         # Filter samples - apply text search
@@ -1120,18 +1239,146 @@ class SampleList(ctk.CTkFrame):
 
         self.count_label.configure(text=f"{len(self.filtered_samples)} samples")
 
-        # Create sample rows with alternating colors for striping
-        for idx, sample in enumerate(self.filtered_samples):
-            row = SampleRow(
-                self.scroll_frame, sample, self._on_play, self._on_edit,
-                self._on_favorite, self._on_add_to_collection, self._on_analyze,
-                show_folder_path=self.is_global_search,
-                on_go_to_folder=self._on_go_to_folder if self.is_global_search else None,
-                on_seek=self._on_seek,
-                row_index=idx
-            )
-            row.pack(fill="x", pady=SPACING.get('row_gap', 1))
-            self.sample_rows.append(row)
+        # PERFORMANCE: For small lists, render all rows (no virtualization overhead)
+        # For large lists (50+), use virtual scrolling
+        total_samples = len(self.filtered_samples)
+
+        if total_samples < 50:
+            # Direct rendering for small lists
+            for idx, sample in enumerate(self.filtered_samples):
+                row = self._create_sample_row(sample, idx)
+                row.pack(fill="x", pady=SPACING.get('row_gap', 1))
+                self.sample_rows.append(row)
+                self._sample_to_row_map[sample['path']] = row
+        else:
+            # Virtual scrolling for large lists
+            self._setup_virtual_scroll()
+
+    def _create_sample_row(self, sample: dict, idx: int) -> SampleRow:
+        """Create a single SampleRow widget.
+
+        PERFORMANCE: Factored out for reuse in virtual scrolling.
+        """
+        return SampleRow(
+            self.scroll_frame, sample, self._on_play, self._on_edit,
+            self._on_favorite, self._on_add_to_collection, self._on_analyze,
+            show_folder_path=self.is_global_search,
+            on_go_to_folder=self._on_go_to_folder if self.is_global_search else None,
+            on_seek=self._on_seek,
+            row_index=idx
+        )
+
+    def _setup_virtual_scroll(self):
+        """Set up virtual scrolling for large sample lists.
+
+        PERFORMANCE: Instead of creating all rows, creates a spacer frame
+        representing total content height and renders only visible rows.
+        """
+        total_samples = len(self.filtered_samples)
+        row_height = self.ROW_HEIGHT_WITH_PATH if self.is_global_search else self.ROW_HEIGHT
+
+        # Create a spacer frame to represent total scrollable height
+        # This tricks the scrollbar into proper sizing
+        total_height = total_samples * row_height
+        self._virtual_spacer = ctk.CTkFrame(
+            self.scroll_frame,
+            fg_color="transparent",
+            height=total_height,
+            width=1
+        )
+        self._virtual_spacer.pack(fill="x")
+        self._virtual_spacer.pack_propagate(False)
+
+        # Calculate initial visible range
+        self._visible_start = 0
+        self._visible_end = 0
+
+        # Bind scroll event to update visible rows
+        # CTkScrollableFrame uses a canvas internally
+        try:
+            canvas = self.scroll_frame._parent_canvas
+            canvas.bind("<Configure>", self._on_viewport_change)
+            canvas.bind("<MouseWheel>", self._on_scroll_event)
+            # Also bind to the scrollbar movement
+            self.scroll_frame.bind("<Configure>", self._on_viewport_change)
+        except AttributeError:
+            pass  # Fallback if internal structure changes
+
+        # Initial render of visible rows
+        self.after(10, self._update_visible_rows)
+
+    def _on_viewport_change(self, event=None):
+        """Handle viewport size change - recalculate visible rows."""
+        self._update_visible_rows()
+
+    def _on_scroll_event(self, event=None):
+        """Handle scroll event - update visible rows after scroll settles."""
+        # Debounce scroll events to avoid excessive updates
+        if hasattr(self, '_scroll_debounce_timer') and self._scroll_debounce_timer:
+            self.after_cancel(self._scroll_debounce_timer)
+        self._scroll_debounce_timer = self.after(16, self._update_visible_rows)  # ~60fps
+
+    def _update_visible_rows(self):
+        """Update which rows are rendered based on scroll position.
+
+        PERFORMANCE: Only creates/destroys rows that enter/leave the viewport.
+        """
+        if len(self.filtered_samples) < 50:
+            return  # Not using virtual scrolling
+
+        try:
+            canvas = self.scroll_frame._parent_canvas
+            # Get current scroll position and viewport height
+            scroll_y = canvas.canvasy(0)  # Top of visible area
+            viewport_height = canvas.winfo_height()
+        except (AttributeError, tk.TclError):
+            return
+
+        row_height = self.ROW_HEIGHT_WITH_PATH if self.is_global_search else self.ROW_HEIGHT
+        total_samples = len(self.filtered_samples)
+
+        # Calculate visible range with buffer
+        first_visible = max(0, int(scroll_y / row_height) - self.VISIBLE_BUFFER)
+        last_visible = min(
+            total_samples - 1,
+            int((scroll_y + viewport_height) / row_height) + self.VISIBLE_BUFFER
+        )
+
+        # Skip if range hasn't changed significantly
+        if first_visible == self._visible_start and last_visible == self._visible_end:
+            return
+
+        # Determine rows to add and remove
+        old_range = set(range(self._visible_start, self._visible_end + 1))
+        new_range = set(range(first_visible, last_visible + 1))
+
+        rows_to_remove = old_range - new_range
+        rows_to_add = new_range - old_range
+
+        # Remove rows that scrolled out of view
+        for idx in rows_to_remove:
+            if idx < len(self.filtered_samples):
+                sample_path = self.filtered_samples[idx]['path']
+                if sample_path in self._sample_to_row_map:
+                    row = self._sample_to_row_map.pop(sample_path)
+                    if row in self.sample_rows:
+                        self.sample_rows.remove(row)
+                    row.destroy()
+
+        # Add rows that scrolled into view
+        for idx in sorted(rows_to_add):
+            if idx < len(self.filtered_samples):
+                sample = self.filtered_samples[idx]
+                if sample['path'] not in self._sample_to_row_map:
+                    row = self._create_sample_row(sample, idx)
+                    # Position row at correct Y offset using place
+                    y_offset = idx * row_height
+                    row.place(x=0, relwidth=1.0, y=y_offset, height=row_height - 2)
+                    self.sample_rows.append(row)
+                    self._sample_to_row_map[sample['path']] = row
+
+        self._visible_start = first_visible
+        self._visible_end = last_visible
 
     def _on_play(self, row, toggle=False):
         """Handle play request from a sample row."""
@@ -1153,11 +1400,8 @@ class SampleList(ctk.CTkFrame):
 
         # Delegate to FooterPlayer via callback
         if self.on_play_request:
-            # Find index in filtered samples
-            try:
-                index = self.filtered_samples.index(row.sample)
-            except ValueError:
-                index = 0
+            # PERFORMANCE: Use row_index stored on the row instead of O(n) list.index()
+            index = getattr(row, 'row_index', 0)
             self.on_play_request(row.sample, self.filtered_samples, index)
 
     def _on_edit(self, row):
@@ -1333,9 +1577,13 @@ class SampleList(ctk.CTkFrame):
 
     def clear_samples(self):
         """Clear the sample list display."""
+        # Clear waveform queue
+        get_waveform_queue().clear()
+
         for row in self.sample_rows:
             row.destroy()
         self.sample_rows = []
+        self._sample_to_row_map.clear()  # PERFORMANCE: Clear the lookup map
         self.all_samples = []
         self.filtered_samples = []
         self.current_playing_row = None
@@ -1352,13 +1600,26 @@ class SampleList(ctk.CTkFrame):
             self.current_playing_row = None
 
     def set_playing_sample(self, sample_path: str, sync_active: bool = False):
-        """Update visual state to show which sample is playing."""
-        for row in self.sample_rows:
-            if row.sample['path'] == sample_path:
-                row.set_playing(True, sync_active=sync_active)
-                self.current_playing_row = row
-            else:
-                row.set_playing(False)
+        """Update visual state to show which sample is playing.
+
+        PERFORMANCE: Uses _sample_to_row_map for O(1) lookup instead of O(n) iteration.
+        """
+        # Stop current playing row if different
+        if self.current_playing_row and self.current_playing_row.sample['path'] != sample_path:
+            self.current_playing_row.set_playing(False)
+
+        # PERFORMANCE: O(1) lookup using map instead of O(n) loop
+        if sample_path in self._sample_to_row_map:
+            row = self._sample_to_row_map[sample_path]
+            row.set_playing(True, sync_active=sync_active)
+            self.current_playing_row = row
+        else:
+            # Fallback for non-virtualized case or row not visible
+            for row in self.sample_rows:
+                if row.sample['path'] == sample_path:
+                    row.set_playing(True, sync_active=sync_active)
+                    self.current_playing_row = row
+                    break
 
     def update_progress(self, percentage: float):
         """Update the progress needle on the currently playing sample row.
@@ -1571,7 +1832,22 @@ class SampleList(ctk.CTkFrame):
             self.filter_btn.configure(fg_color=COLORS['bg_hover'])
 
     def _on_filter_change(self, *args):
-        """Handle filter value changes (BPM entries, format checkboxes)."""
+        """Handle filter value changes (BPM entries, format checkboxes).
+
+        PERFORMANCE: Debounces filter changes to prevent excessive re-renders
+        when typing in BPM fields.
+        """
+        # Cancel any pending debounce timer
+        if self._debounce_timer:
+            self.after_cancel(self._debounce_timer)
+
+        # Schedule the actual filter application after debounce delay
+        self._debounce_timer = self.after(self.DEBOUNCE_MS, self._apply_filters)
+
+    def _apply_filters(self):
+        """Actually apply filters after debounce delay."""
+        self._debounce_timer = None
+
         # Parse BPM min
         try:
             bpm_min_str = self.bpm_min_var.get().strip()

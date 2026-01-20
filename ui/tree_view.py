@@ -12,7 +12,20 @@ class FolderNode(ctk.CTkFrame):
     """A single folder node in the tree view."""
 
     def __init__(self, parent, folder_path, level, on_select, on_toggle, is_root=False,
-                 on_remove=None, **kwargs):
+                 on_remove=None, cached_count=None, **kwargs):
+        """
+        Initialize a folder node.
+
+        Args:
+            parent: Parent widget.
+            folder_path: Path to the folder.
+            level: Nesting level (0 = root).
+            on_select: Callback when folder is selected.
+            on_toggle: Callback when folder is expanded/collapsed.
+            is_root: Whether this is a root folder.
+            on_remove: Callback for removing root folders.
+            cached_count: Pre-fetched sample count (avoids DB query if provided).
+        """
         super().__init__(parent, fg_color="transparent", **kwargs)
 
         self.folder_path = folder_path
@@ -24,6 +37,7 @@ class FolderNode(ctk.CTkFrame):
         self.is_expanded = False
         self.children_frame = None
         self.child_nodes = []
+        self._cached_count = cached_count  # Pre-fetched count (None = fetch on demand)
 
         self._build_ui()
         if self.is_root:
@@ -107,6 +121,9 @@ class FolderNode(ctk.CTkFrame):
 
     def _get_cached_count(self) -> int:
         """Get sample count from database cache (fast, no disk I/O)."""
+        # Use pre-fetched count if available (batch optimization)
+        if self._cached_count is not None:
+            return self._cached_count
         try:
             db = get_database()
             return db.get_folder_sample_count(self.folder_path)
@@ -151,7 +168,7 @@ class FolderNode(ctk.CTkFrame):
             pass  # Widget was destroyed during operation
 
     def _create_children(self):
-        """Create child folder nodes."""
+        """Create child folder nodes with batch-optimized count fetching."""
         if self.children_frame is not None:
             return
 
@@ -159,13 +176,21 @@ class FolderNode(ctk.CTkFrame):
         self.children_frame.pack(fill="x")
 
         subfolders = LibraryScanner.get_subfolders(self.folder_path)
+        if not subfolders:
+            return
+
+        # PERFORMANCE: Batch-fetch all counts in one query instead of N queries
+        db = get_database()
+        counts = db.get_batch_folder_sample_counts(subfolders)
+
         for subfolder in subfolders:
             child = FolderNode(
                 self.children_frame,
                 subfolder,
                 self.level + 1,
                 self.on_select,
-                self.on_toggle
+                self.on_toggle,
+                cached_count=counts.get(subfolder, 0)  # Pass pre-fetched count
             )
             child.pack(fill="x")
             self.child_nodes.append(child)
