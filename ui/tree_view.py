@@ -32,7 +32,7 @@ class FolderNode(ctk.CTkFrame):
     def _build_ui(self):
         """Build the folder node UI."""
         folder_name = os.path.basename(self.folder_path)
-        indent = 20 * self.level  # 20px per level for better hierarchy
+        indent = 16 * self.level  # 16px per level for hierarchy
 
         # Quick check for subfolders (just check if any exist, don't enumerate all)
         self.has_subfolders = self._has_subfolders_fast()
@@ -69,14 +69,14 @@ class FolderNode(ctk.CTkFrame):
             count_label = ctk.CTkLabel(
                 row,
                 text=str(count),
-                font=ctk.CTkFont(family="JetBrains Mono", size=11),
+                font=ctk.CTkFont(family="JetBrains Mono", size=10),
                 fg_color=COLORS['bg_hover'],
-                corner_radius=4,
+                corner_radius=3,
                 text_color=COLORS['fg_dim'],
-                width=36,
-                height=22
+                width=28,
+                height=20
             )
-            count_label.pack(side="right", padx=(0, 8))
+            count_label.pack(side="right", padx=(0, 4))
 
         # Folder button - BIGGER font, clicking also toggles expand
         font_size = 14 if self.level == 0 else 13  # Root folders bigger text
@@ -212,8 +212,18 @@ class FolderNode(ctk.CTkFrame):
             menu.grab_release()
 
     def _on_remove_click(self):
-        """Handle remove from library click."""
-        if self.on_remove:
+        """Handle remove from library click with confirmation."""
+        from tkinter import messagebox
+        folder_name = os.path.basename(self.folder_path) or self.folder_path
+
+        result = messagebox.askyesno(
+            "Remove Folder",
+            f"Are you sure you want to remove '{folder_name}' from the library?\n\n"
+            "This will not delete any files, only remove them from the library index.",
+            icon='warning'
+        )
+
+        if result and self.on_remove:
             self.on_remove(self.folder_path)
 
 
@@ -226,14 +236,14 @@ class LibraryTreeView(ctk.CTkFrame):
         # Add border for pro look - WIDER for bigger items
         super().__init__(
             master,
-            width=260,  # Wider to fit bigger items
+            width=300,  # Wider to fit longer folder names
             corner_radius=0,
             fg_color=COLORS['bg_dark'],
             border_width=1,
             border_color=COLORS['border'],
             **kwargs
         )
-        self.grid_propagate(False)
+        self.pack_propagate(False)
 
         self.command = command
         self.on_favorites = on_favorites  # Callback for favorites selection
@@ -362,14 +372,14 @@ class LibraryTreeView(ctk.CTkFrame):
             count_label = ctk.CTkLabel(
                 row,
                 text=str(count),
-                font=ctk.CTkFont(size=11),
+                font=ctk.CTkFont(size=10),
                 fg_color=COLORS['accent'],
-                corner_radius=4,
+                corner_radius=3,
                 text_color="#ffffff",
-                width=36,
-                height=22
+                width=28,
+                height=20
             )
-            count_label.pack(side="right", padx=(0, 8))
+            count_label.pack(side="right", padx=(0, 4))
 
     def _on_favorites_click(self):
         """Handle favorites click."""
@@ -424,14 +434,14 @@ class LibraryTreeView(ctk.CTkFrame):
             self.recent_count_label = ctk.CTkLabel(
                 row,
                 text=str(count),
-                font=ctk.CTkFont(size=11),
+                font=ctk.CTkFont(size=10),
                 fg_color=COLORS['bg_hover'],
-                corner_radius=4,
+                corner_radius=3,
                 text_color=COLORS['fg_dim'],
-                width=36,
-                height=22
+                width=28,
+                height=20
             )
-            self.recent_count_label.pack(side="right", padx=(0, 8))
+            self.recent_count_label.pack(side="right", padx=(0, 4))
 
     def _on_recent_click(self):
         """Handle recent click."""
@@ -564,14 +574,14 @@ class LibraryTreeView(ctk.CTkFrame):
             count_label = ctk.CTkLabel(
                 row,
                 text=str(count),
-                font=ctk.CTkFont(size=11),
+                font=ctk.CTkFont(size=10),
                 fg_color=COLORS['bg_hover'],
-                corner_radius=4,
+                corner_radius=3,
                 text_color=COLORS['fg_dim'],
-                width=36,
-                height=22
+                width=28,
+                height=20
             )
-            count_label.pack(side="right", padx=(0, 8))
+            count_label.pack(side="right", padx=(0, 4))
 
         self.collection_btns[collection_id] = btn
 
@@ -659,10 +669,26 @@ class LibraryTreeView(ctk.CTkFrame):
             self.on_export_collection(collection_id, collection_name)
 
     def _on_delete_collection_click(self, collection_id: int):
-        """Handle delete collection click."""
+        """Handle delete collection click with confirmation."""
+        import customtkinter as ctk
         db = get_database()
-        db.delete_collection(collection_id)
-        self.refresh()
+
+        # Get collection name for confirmation
+        collection = db.get_collection(collection_id)
+        if not collection:
+            return
+
+        # Show confirmation dialog
+        confirm = ctk.CTkInputDialog(
+            text=f"Are you sure you want to delete the collection:\n'{collection['name']}'?\n\nSamples will not be deleted, only the collection.",
+            title="Confirm Delete Collection"
+        )
+        result = confirm.get_input()
+
+        # CTkInputDialog returns None if cancelled, empty string if OK clicked
+        if result is not None:
+            db.delete_collection(collection_id)
+            self.refresh()
 
     def _on_create_project_from_collection(self, collection_id: int, collection_name: str):
         """Create a Studio Flow project from this collection."""

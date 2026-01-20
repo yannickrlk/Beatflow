@@ -300,6 +300,12 @@ class ProducerOSApp(ProducerOSAppBase):
         self.bind('<Left>', self._on_left)
         self.bind('<Right>', self._on_right)
 
+        # View switching shortcuts
+        self.bind('<Control-Key-1>', self._on_ctrl_1)
+        self.bind('<Control-Key-2>', self._on_ctrl_2)
+        self.bind('<Control-Key-3>', self._on_ctrl_3)
+        self.bind('<Control-Key-4>', self._on_ctrl_4)
+
     def _on_space(self, event=None):
         """Toggle play/pause on Space key."""
         # Don't trigger if focus is in an entry widget
@@ -322,6 +328,30 @@ class ProducerOSApp(ProducerOSAppBase):
         if isinstance(self.focus_get(), ctk.CTkEntry):
             return
         self.player._on_next()
+
+    def _on_ctrl_1(self, event=None):
+        """Switch to Browse view with Ctrl+1."""
+        if not isinstance(self.focus_get(), ctk.CTkEntry):
+            self._on_nav_change("browse")
+            self.sidebar.set_active("browse")
+
+    def _on_ctrl_2(self, event=None):
+        """Switch to Studio Flow view with Ctrl+2."""
+        if not isinstance(self.focus_get(), ctk.CTkEntry):
+            self._on_nav_change("tasks")
+            self.sidebar.set_active("tasks")
+
+    def _on_ctrl_3(self, event=None):
+        """Switch to Network view with Ctrl+3."""
+        if not isinstance(self.focus_get(), ctk.CTkEntry):
+            self._on_nav_change("network")
+            self.sidebar.set_active("network")
+
+    def _on_ctrl_4(self, event=None):
+        """Switch to Business view with Ctrl+4."""
+        if not isinstance(self.focus_get(), ctk.CTkEntry):
+            self._on_nav_change("business")
+            self.sidebar.set_active("business")
 
     def _add_folder(self):
         """Open folder browser and add selected folder."""

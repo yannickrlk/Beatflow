@@ -225,7 +225,7 @@ class MetadataEditDialog(ctk.CTkToplevel):
         )
         cancel_btn.pack(side="right", padx=(8, 0))
 
-        save_btn = ctk.CTkButton(
+        self.save_btn = ctk.CTkButton(
             btn_frame,
             text="Save",
             font=ctk.CTkFont(size=13, weight="bold"),
@@ -237,7 +237,7 @@ class MetadataEditDialog(ctk.CTkToplevel):
             corner_radius=6,
             command=self._on_save
         )
-        save_btn.pack(side="right")
+        self.save_btn.pack(side="right")
 
         # Bind Enter key to save
         self.bind("<Return>", lambda e: self._on_save())
@@ -289,7 +289,18 @@ class MetadataEditDialog(ctk.CTkToplevel):
         if self.on_save:
             self.on_save(self.result)
 
-        self.destroy()
+        # Show success feedback before closing
+        self._show_success_feedback()
+
+    def _show_success_feedback(self):
+        """Show brief success indication on save button before closing."""
+        # Change button to show success state
+        self.save_btn.configure(
+            text="Saved!",
+            fg_color=COLORS['success']
+        )
+        # Close dialog after brief delay
+        self.after(800, self.destroy)
 
     def _on_cancel(self):
         """Handle cancel button click."""
@@ -308,8 +319,9 @@ class NewCollectionDialog(ctk.CTkToplevel):
 
         # Window setup
         self.title("New Collection")
-        self.geometry("350x180")
-        self.resizable(False, False)
+        self.geometry("350x200")
+        self.minsize(300, 180)
+        self.resizable(True, True)
         self.configure(fg_color=COLORS['bg_dark'])
 
         # Make modal
@@ -327,6 +339,10 @@ class NewCollectionDialog(ctk.CTkToplevel):
 
     def _build_ui(self):
         """Build the dialog UI."""
+        # Use grid layout for proper expansion
+        self.grid_rowconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+
         # Header
         title_label = ctk.CTkLabel(
             self,
@@ -334,11 +350,11 @@ class NewCollectionDialog(ctk.CTkToplevel):
             font=ctk.CTkFont(size=16, weight="bold"),
             text_color=COLORS['fg']
         )
-        title_label.pack(padx=24, pady=(20, 16))
+        title_label.grid(row=0, column=0, padx=24, pady=(20, 16), sticky="w")
 
         # Name input
         name_frame = ctk.CTkFrame(self, fg_color="transparent")
-        name_frame.pack(fill="x", padx=24)
+        name_frame.grid(row=1, column=0, sticky="nsew", padx=24)
 
         name_label = ctk.CTkLabel(
             name_frame,
@@ -360,7 +376,7 @@ class NewCollectionDialog(ctk.CTkToplevel):
 
         # Buttons
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=24, pady=(20, 20))
+        btn_frame.grid(row=2, column=0, sticky="ew", padx=24, pady=(20, 20))
 
         cancel_btn = ctk.CTkButton(
             btn_frame,
@@ -425,8 +441,9 @@ class AddToCollectionDialog(ctk.CTkToplevel):
 
         # Window setup
         self.title("Add to Collection")
-        self.geometry("320x350")
-        self.resizable(False, False)
+        self.geometry("350x400")
+        self.minsize(300, 300)
+        self.resizable(True, True)
         self.configure(fg_color=COLORS['bg_dark'])
 
         # Make modal
@@ -443,6 +460,10 @@ class AddToCollectionDialog(ctk.CTkToplevel):
 
     def _build_ui(self):
         """Build the dialog UI."""
+        # Use grid layout for proper expansion
+        self.grid_rowconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+
         # Header
         title_label = ctk.CTkLabel(
             self,
@@ -450,16 +471,16 @@ class AddToCollectionDialog(ctk.CTkToplevel):
             font=ctk.CTkFont(size=16, weight="bold"),
             text_color=COLORS['fg']
         )
-        title_label.pack(padx=20, pady=(16, 12))
+        title_label.grid(row=0, column=0, padx=20, pady=(16, 12), sticky="w")
 
-        # Collections list
+        # Collections list (scrollable, expands)
         list_frame = ctk.CTkScrollableFrame(
             self,
             fg_color=COLORS['bg_main'],
             corner_radius=8,
-            height=200
+            scrollbar_button_color=COLORS['bg_hover']
         )
-        list_frame.pack(fill="both", expand=True, padx=20, pady=(0, 12))
+        list_frame.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 12))
 
         if not self.collections:
             hint = ctk.CTkLabel(
@@ -474,9 +495,13 @@ class AddToCollectionDialog(ctk.CTkToplevel):
             for collection in self.collections:
                 self._create_collection_row(list_frame, collection)
 
+        # Bottom buttons frame
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame.grid(row=2, column=0, sticky="ew", padx=20, pady=(0, 16))
+
         # Create new collection button
         new_btn = ctk.CTkButton(
-            self,
+            btn_frame,
             text="+ Create New Collection",
             font=ctk.CTkFont(size=12),
             fg_color="transparent",
@@ -486,11 +511,11 @@ class AddToCollectionDialog(ctk.CTkToplevel):
             corner_radius=6,
             command=self._on_create_new
         )
-        new_btn.pack(fill="x", padx=20, pady=(0, 12))
+        new_btn.pack(fill="x", pady=(0, 8))
 
         # Cancel button
         cancel_btn = ctk.CTkButton(
-            self,
+            btn_frame,
             text="Cancel",
             font=ctk.CTkFont(size=13),
             fg_color=COLORS['bg_hover'],
@@ -500,7 +525,7 @@ class AddToCollectionDialog(ctk.CTkToplevel):
             corner_radius=6,
             command=self._on_cancel
         )
-        cancel_btn.pack(fill="x", padx=20, pady=(0, 16))
+        cancel_btn.pack(fill="x")
 
         # Bind escape
         self.bind("<Escape>", lambda e: self._on_cancel())
@@ -554,8 +579,9 @@ class SettingsDialog(ctk.CTkToplevel):
 
         # Window setup
         self.title("Settings")
-        self.geometry("450x520")
-        self.resizable(False, False)
+        self.geometry("450x560")
+        self.minsize(400, 450)
+        self.resizable(True, True)
         self.configure(fg_color=COLORS['bg_dark'])
 
         # Make modal
@@ -578,9 +604,13 @@ class SettingsDialog(ctk.CTkToplevel):
 
     def _build_ui(self):
         """Build the settings UI."""
+        # Use grid layout for proper expansion
+        self.grid_rowconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+
         # Header
         header = ctk.CTkFrame(self, fg_color="transparent")
-        header.pack(fill="x", padx=SPACING['lg'], pady=(SPACING['lg'], SPACING['md']))
+        header.grid(row=0, column=0, sticky="ew", padx=SPACING['lg'], pady=(SPACING['lg'], SPACING['md']))
 
         title_label = ctk.CTkLabel(
             header,
@@ -598,7 +628,7 @@ class SettingsDialog(ctk.CTkToplevel):
             scrollbar_button_color=COLORS['bg_hover'],
             scrollbar_button_hover_color=COLORS['accent']
         )
-        settings_frame.pack(fill="both", expand=True, padx=SPACING['lg'], pady=(0, SPACING['md']))
+        settings_frame.grid(row=1, column=0, sticky="nsew", padx=SPACING['lg'], pady=(0, SPACING['md']))
 
         # ===== Keyboard Shortcuts Section =====
         shortcuts_label = ctk.CTkLabel(
@@ -768,9 +798,12 @@ class SettingsDialog(ctk.CTkToplevel):
         )
         support_btn.pack(side="left")
 
-        # Close button
+        # Close button frame
+        close_frame = ctk.CTkFrame(self, fg_color="transparent")
+        close_frame.grid(row=2, column=0, sticky="ew", padx=SPACING['lg'], pady=(0, SPACING['lg']))
+
         close_btn = ctk.CTkButton(
-            self,
+            close_frame,
             text="Close",
             font=ctk.CTkFont(size=13),
             fg_color=COLORS['bg_hover'],
@@ -781,7 +814,7 @@ class SettingsDialog(ctk.CTkToplevel):
             corner_radius=6,
             command=self.destroy
         )
-        close_btn.pack(pady=(0, SPACING['lg']))
+        close_btn.pack()
 
         # Bind escape
         self.bind("<Escape>", lambda e: self.destroy())
@@ -989,16 +1022,14 @@ class MetadataArchitectDialog(ctk.CTkToplevel):
         # Import metadata architect
         try:
             from core.metadata_architect import (
-                get_rule_engine, get_regex_renamer, get_duplicate_finder,
-                PRESET_RULES, RENAME_PATTERNS
+                get_rule_engine, get_duplicate_finder,
+                PRESET_RULES
             )
             from core.database import get_database
             self.rule_engine = get_rule_engine()
-            self.regex_renamer = get_regex_renamer()
             self.duplicate_finder = get_duplicate_finder()
             self.db = get_database()
             self.preset_rules = PRESET_RULES
-            self.rename_patterns = RENAME_PATTERNS
         except ImportError as e:
             print(f"Failed to import metadata_architect: {e}")
             self.destroy()
@@ -1049,7 +1080,6 @@ class MetadataArchitectDialog(ctk.CTkToplevel):
         self.tab_buttons = {}
         tabs = [
             ('rules', 'Tagging Rules'),
-            ('renamer', 'Regex Renamer'),
             ('duplicates', 'Duplicate Finder')
         ]
 
@@ -1125,8 +1155,6 @@ class MetadataArchitectDialog(ctk.CTkToplevel):
         # Build new tab content
         if tab_id == 'rules':
             self._build_rules_tab()
-        elif tab_id == 'renamer':
-            self._build_renamer_tab()
         elif tab_id == 'duplicates':
             self._build_duplicates_tab()
 
@@ -1293,9 +1321,18 @@ class MetadataArchitectDialog(ctk.CTkToplevel):
         self._refresh_rules_list()
 
     def _delete_rule(self, rule_id: int):
-        """Delete a rule."""
-        self.db.delete_tagging_rule(rule_id)
-        self._refresh_rules_list()
+        """Delete a rule with confirmation."""
+        # Show confirmation dialog
+        confirm = ctk.CTkInputDialog(
+            text="Are you sure you want to delete this rule?\nThis action cannot be undone.",
+            title="Confirm Delete"
+        )
+        result = confirm.get_input()
+
+        # CTkInputDialog returns None if cancelled, empty string if OK clicked
+        if result is not None:
+            self.db.delete_tagging_rule(rule_id)
+            self._refresh_rules_list()
 
     def _show_add_rule_dialog(self):
         """Show dialog to add a new rule."""
@@ -1351,226 +1388,6 @@ class MetadataArchitectDialog(ctk.CTkToplevel):
         if self.on_refresh:
             self.on_refresh()
 
-    # ==================== Regex Renamer Tab ====================
-
-    def _build_renamer_tab(self):
-        """Build the regex renamer tab."""
-        # Description
-        desc = ctk.CTkLabel(
-            self.content_frame,
-            text="Batch rename files using regular expressions. Preview changes before applying.",
-            font=ctk.CTkFont(size=12),
-            text_color=COLORS['fg_secondary']
-        )
-        desc.pack(anchor="w", padx=SPACING['md'], pady=(SPACING['md'], SPACING['sm']))
-
-        # Pattern selection
-        pattern_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
-        pattern_frame.pack(fill="x", padx=SPACING['md'], pady=SPACING['sm'])
-
-        ctk.CTkLabel(
-            pattern_frame,
-            text="Preset Pattern:",
-            font=ctk.CTkFont(size=12),
-            text_color=COLORS['fg_secondary']
-        ).pack(side="left")
-
-        pattern_names = [p['name'] for p in self.rename_patterns]
-        self.pattern_var = ctk.StringVar(value=pattern_names[0] if pattern_names else '')
-        pattern_menu = ctk.CTkOptionMenu(
-            pattern_frame,
-            values=pattern_names,
-            variable=self.pattern_var,
-            font=ctk.CTkFont(size=12),
-            fg_color=COLORS['bg_hover'],
-            button_color=COLORS['bg_hover'],
-            button_hover_color=COLORS['accent'],
-            dropdown_fg_color=COLORS['bg_card'],
-            dropdown_hover_color=COLORS['bg_hover'],
-            width=200,
-            command=self._on_pattern_select
-        )
-        pattern_menu.pack(side="left", padx=SPACING['sm'])
-
-        # Custom pattern input
-        custom_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
-        custom_frame.pack(fill="x", padx=SPACING['md'], pady=SPACING['sm'])
-
-        ctk.CTkLabel(
-            custom_frame,
-            text="Pattern:",
-            font=ctk.CTkFont(size=11),
-            text_color=COLORS['fg_secondary'],
-            width=80
-        ).pack(side="left")
-
-        self.pattern_entry = ctk.CTkEntry(
-            custom_frame,
-            font=ctk.CTkFont(size=12, family="Consolas"),
-            fg_color=COLORS['bg_hover'],
-            border_width=0,
-            height=32
-        )
-        self.pattern_entry.pack(side="left", fill="x", expand=True, padx=(0, SPACING['sm']))
-
-        ctk.CTkLabel(
-            custom_frame,
-            text="Replace:",
-            font=ctk.CTkFont(size=11),
-            text_color=COLORS['fg_secondary'],
-            width=70
-        ).pack(side="left")
-
-        self.replace_entry = ctk.CTkEntry(
-            custom_frame,
-            font=ctk.CTkFont(size=12, family="Consolas"),
-            fg_color=COLORS['bg_hover'],
-            border_width=0,
-            height=32,
-            width=150
-        )
-        self.replace_entry.pack(side="left")
-
-        # Set initial pattern
-        if self.rename_patterns:
-            self._on_pattern_select(pattern_names[0])
-
-        # Preview button
-        preview_btn = ctk.CTkButton(
-            self.content_frame,
-            text="Preview Changes",
-            font=ctk.CTkFont(size=12),
-            fg_color=COLORS['accent_secondary'],
-            hover_color='#7C4DDB',
-            text_color="white",
-            width=130,
-            height=32,
-            corner_radius=6,
-            command=self._preview_renames
-        )
-        preview_btn.pack(anchor="w", padx=SPACING['md'], pady=SPACING['sm'])
-
-        # Preview list
-        self.rename_list = ctk.CTkScrollableFrame(
-            self.content_frame,
-            fg_color=COLORS['bg_main'],
-            corner_radius=6,
-            scrollbar_button_color=COLORS['bg_hover'],
-            scrollbar_button_hover_color=COLORS['accent']
-        )
-        self.rename_list.pack(fill="both", expand=True, padx=SPACING['md'], pady=(0, SPACING['sm']))
-
-        # Apply button
-        btn_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=SPACING['md'], pady=SPACING['md'])
-
-        self.apply_rename_btn = ctk.CTkButton(
-            btn_frame,
-            text="Apply Renames",
-            font=ctk.CTkFont(size=12, weight="bold"),
-            fg_color=COLORS['accent'],
-            hover_color=COLORS['accent_hover'],
-            text_color="white",
-            width=120,
-            height=34,
-            corner_radius=6,
-            state="disabled",
-            command=self._apply_renames
-        )
-        self.apply_rename_btn.pack(side="right")
-
-        self.rename_count_label = ctk.CTkLabel(
-            btn_frame,
-            text="",
-            font=ctk.CTkFont(size=12),
-            text_color=COLORS['fg_secondary']
-        )
-        self.rename_count_label.pack(side="left")
-
-    def _on_pattern_select(self, pattern_name: str):
-        """Handle preset pattern selection."""
-        for p in self.rename_patterns:
-            if p['name'] == pattern_name:
-                self.pattern_entry.delete(0, 'end')
-                self.pattern_entry.insert(0, p['pattern'])
-                self.replace_entry.delete(0, 'end')
-                self.replace_entry.insert(0, p['replacement'])
-                break
-
-    def _preview_renames(self):
-        """Preview rename changes."""
-        pattern = self.pattern_entry.get()
-        replacement = self.replace_entry.get()
-
-        if not pattern:
-            return
-
-        # Get current samples
-        samples = self._get_current_samples()
-        if not samples:
-            return
-
-        paths = [s.get('path') for s in samples if s.get('path')]
-        self.rename_previews = self.regex_renamer.preview_batch_rename(paths, pattern, replacement, re.IGNORECASE)
-
-        # Update preview list
-        for widget in self.rename_list.winfo_children():
-            widget.destroy()
-
-        if not self.rename_previews:
-            empty = ctk.CTkLabel(
-                self.rename_list,
-                text="No files would be renamed with this pattern.",
-                font=ctk.CTkFont(size=12),
-                text_color=COLORS['fg_dim']
-            )
-            empty.pack(pady=40)
-            self.apply_rename_btn.configure(state="disabled")
-            self.rename_count_label.configure(text="")
-            return
-
-        for path, old_name, new_name in self.rename_previews:
-            row = ctk.CTkFrame(self.rename_list, fg_color=COLORS['bg_card'], corner_radius=4)
-            row.pack(fill="x", padx=SPACING['sm'], pady=2)
-
-            ctk.CTkLabel(
-                row,
-                text=old_name,
-                font=ctk.CTkFont(size=11),
-                text_color=COLORS['fg_dim']
-            ).pack(anchor="w", padx=SPACING['sm'], pady=(4, 0))
-
-            ctk.CTkLabel(
-                row,
-                text=f"→ {new_name}",
-                font=ctk.CTkFont(size=11, weight="bold"),
-                text_color=COLORS['success']
-            ).pack(anchor="w", padx=SPACING['sm'], pady=(0, 4))
-
-        self.apply_rename_btn.configure(state="normal")
-        self.rename_count_label.configure(text=f"{len(self.rename_previews)} files will be renamed")
-
-    def _apply_renames(self):
-        """Apply the previewed renames."""
-        if not self.rename_previews:
-            return
-
-        renames = [(path, new_name) for path, old_name, new_name in self.rename_previews]
-        result = self.regex_renamer.batch_rename(renames)
-
-        msg = f"Renamed {result['success']} of {result['total']} files."
-        if result['failed'] > 0:
-            msg += f"\n{result['failed']} failed."
-
-        ResultDialog(self, "Rename Complete", msg)
-
-        self.rename_previews = []
-        self.apply_rename_btn.configure(state="disabled")
-        self._preview_renames()  # Refresh
-
-        if self.on_refresh:
-            self.on_refresh()
-
     # ==================== Duplicate Finder Tab ====================
 
     def _build_duplicates_tab(self):
@@ -1612,8 +1429,8 @@ class MetadataArchitectDialog(ctk.CTkToplevel):
         )
         near_check.pack(side="left", padx=(SPACING['lg'], 0))
 
-        # Scan button
-        scan_btn = ctk.CTkButton(
+        # Scan button (store as instance variable to enable/disable during scan)
+        self.scan_btn = ctk.CTkButton(
             self.content_frame,
             text="Scan for Duplicates",
             font=ctk.CTkFont(size=12, weight="bold"),
@@ -1625,7 +1442,7 @@ class MetadataArchitectDialog(ctk.CTkToplevel):
             corner_radius=6,
             command=self._scan_duplicates
         )
-        scan_btn.pack(anchor="w", padx=SPACING['md'], pady=SPACING['sm'])
+        self.scan_btn.pack(anchor="w", padx=SPACING['md'], pady=SPACING['sm'])
 
         # Progress label
         self.dup_progress = ctk.CTkLabel(
@@ -1647,8 +1464,10 @@ class MetadataArchitectDialog(ctk.CTkToplevel):
         self.dup_list.pack(fill="both", expand=True, padx=SPACING['md'], pady=(SPACING['sm'], SPACING['md']))
 
     def _scan_duplicates(self):
-        """Scan for duplicates."""
-        self.dup_progress.configure(text="Scanning...")
+        """Scan for duplicates with loading indicator."""
+        # Disable scan button and show scanning state with spinner
+        self.scan_btn.configure(state="disabled", text="⏳ Scanning...")
+        self.dup_progress.configure(text="⏳ Scanning for duplicates...")
 
         for widget in self.dup_list.winfo_children():
             widget.destroy()
@@ -1676,9 +1495,15 @@ class MetadataArchitectDialog(ctk.CTkToplevel):
                 groups.extend(near_groups)
 
             self.duplicate_groups = groups
-            self.after(0, self._show_duplicate_results)
+            # Re-enable scan button and show results on main thread
+            self.after(0, self._on_scan_complete)
 
         threading.Thread(target=scan_thread, daemon=True).start()
+
+    def _on_scan_complete(self):
+        """Called when duplicate scan completes - re-enables UI and shows results."""
+        self.scan_btn.configure(state="normal", text="Scan for Duplicates")
+        self._show_duplicate_results()
 
     def _show_duplicate_results(self):
         """Show duplicate scan results."""
@@ -1772,12 +1597,24 @@ class MetadataArchitectDialog(ctk.CTkToplevel):
                 del_btn.pack(side="right", padx=SPACING['sm'], pady=4)
 
     def _remove_duplicate(self, path: str):
-        """Remove a duplicate file."""
-        success, msg = self.duplicate_finder.safe_delete(path)
-        if success:
-            self._scan_duplicates()  # Refresh
-            if self.on_refresh:
-                self.on_refresh()
+        """Remove a duplicate file with confirmation."""
+        from tkinter import messagebox
+        import os
+        filename = os.path.basename(path)
+
+        # Show confirmation dialog using standard messagebox
+        result = messagebox.askyesno(
+            "Confirm Delete",
+            f"Are you sure you want to delete:\n{filename}\n\nThis will move it to trash.",
+            icon='warning'
+        )
+
+        if result:
+            success, msg = self.duplicate_finder.safe_delete(path)
+            if success:
+                self._scan_duplicates()  # Refresh
+                if self.on_refresh:
+                    self.on_refresh()
 
     def _get_current_samples(self) -> List[Dict]:
         """Get samples from the current view."""

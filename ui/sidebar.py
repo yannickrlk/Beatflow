@@ -1,7 +1,7 @@
 """Sidebar navigation component for ProducerOS."""
 
 import customtkinter as ctk
-from ui.theme import COLORS, SPACING, SIZING, FONTS
+from ui.theme import COLORS, FONTS, SIZING, SPACING
 
 
 class Sidebar(ctk.CTkFrame):
@@ -43,17 +43,36 @@ class Sidebar(ctk.CTkFrame):
         nav_frame = ctk.CTkFrame(self, fg_color="transparent")
         nav_frame.pack(fill="x", pady=(32, 0), padx=8)
 
-        nav_items = [
-            ("browse", "Browse", True),  # Active by default
-            ("network", "Network", False),
-            ("tasks", "Studio Flow", False),  # Task management
-            ("business", "Business", False),  # Finance & invoices
+        # Section structure with headers
+        sections = [
+            ("LIBRARY", [
+                ("browse", "Browse", True),  # Active by default
+            ]),
+            ("WORKFLOW", [
+                ("tasks", "Studio Flow", False),  # Task management
+            ]),
+            ("CONNECTIONS", [
+                ("network", "Network", False),
+                ("business", "Business", False),  # Finance & invoices
+            ]),
         ]
 
-        for nav_id, label, is_active in nav_items:
-            btn, indicator = self._create_nav_button(nav_frame, nav_id, label, is_active)
-            self.nav_buttons[nav_id] = btn
-            self.nav_indicators[nav_id] = indicator
+        for section_name, section_items in sections:
+            # Section header
+            header = ctk.CTkLabel(
+                nav_frame,
+                text=section_name,
+                font=FONTS['tiny'],
+                text_color=COLORS['fg_dim'],
+                anchor="w"
+            )
+            header.pack(fill="x", pady=(16, 8) if section_name != "LIBRARY" else (0, 8), padx=8)
+
+            # Section navigation items
+            for nav_id, label, is_active in section_items:
+                btn, indicator = self._create_nav_button(nav_frame, nav_id, label, is_active)
+                self.nav_buttons[nav_id] = btn
+                self.nav_indicators[nav_id] = indicator
 
     def _create_nav_button(self, parent, nav_id, label, is_active=False):
         """Create a navigation button with vertical accent indicator."""
@@ -68,8 +87,8 @@ class Sidebar(ctk.CTkFrame):
         icon = icons.get(nav_id, "")
         text = f"  {icon}  {label}" if icon else f"  {label}"
 
-        # Container for indicator + button - BIGGER for easier clicking
-        row_height = 48  # Much bigger buttons
+        # Container for indicator + button - use theme constant for consistency
+        row_height = SIZING['sidebar_item_height']  # 40px for better proportions
         row = ctk.CTkFrame(parent, fg_color="transparent", height=row_height)
         row.pack(fill="x", pady=4)  # More spacing between buttons
         row.pack_propagate(False)

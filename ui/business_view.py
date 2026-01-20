@@ -36,32 +36,24 @@ class BusinessView(ctk.CTkFrame):
         )
         title_label.pack(side="left", pady=SPACING['sm'])
 
-        # Tab buttons
-        self.tab_frame = ctk.CTkFrame(self.topbar, fg_color="transparent")
-        self.tab_frame.pack(side="left", fill="y", padx=SPACING['lg'])
-
-        self.tab_buttons = {}
-        tabs = [
-            ("dashboard", "Dashboard"),
-            ("invoices", "Invoices"),
-            ("ledger", "Ledger"),
-            ("catalog", "Catalog")
-        ]
-
-        for tab_id, label in tabs:
-            btn = ctk.CTkButton(
-                self.tab_frame,
-                text=label,
-                font=ctk.CTkFont(family="Inter", size=12),
-                fg_color=COLORS['accent'] if tab_id == "dashboard" else "transparent",
-                hover_color=COLORS['bg_hover'],
-                height=32,
-                corner_radius=4,
-                text_color=COLORS['fg'],
-                command=lambda tid=tab_id: self._on_tab_change(tid)
-            )
-            btn.pack(side="left", padx=2, pady=SPACING['sm'])
-            self.tab_buttons[tab_id] = btn
+        # Tab switcher (CTkSegmentedButton for consistency)
+        self.tab_switcher = ctk.CTkSegmentedButton(
+            self.topbar,
+            values=["Dashboard", "Invoices", "Ledger", "Catalog"],
+            command=self._on_segmented_tab_change,
+            font=ctk.CTkFont(family="Inter", size=12),
+            fg_color=COLORS['bg_hover'],
+            selected_color=COLORS['accent'],
+            selected_hover_color=COLORS['accent_hover'],
+            unselected_color=COLORS['bg_hover'],
+            unselected_hover_color=COLORS['bg_card'],
+            width=380,
+            height=32,
+            corner_radius=4,
+            dynamic_resizing=False
+        )
+        self.tab_switcher.set("Dashboard")
+        self.tab_switcher.pack(side="left", padx=SPACING['md'], pady=SPACING['sm'])
 
         # Content area
         self.content_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -84,17 +76,23 @@ class BusinessView(ctk.CTkFrame):
         # Show default tab
         self.tab_containers['dashboard'].pack(fill="both", expand=True)
 
+    def _on_segmented_tab_change(self, value):
+        """Handle segmented button tab change."""
+        # Map display names to tab IDs
+        tab_map = {
+            "Dashboard": "dashboard",
+            "Invoices": "invoices",
+            "Ledger": "ledger",
+            "Catalog": "catalog"
+        }
+        tab_id = tab_map.get(value)
+        if tab_id:
+            self._on_tab_change(tab_id)
+
     def _on_tab_change(self, tab_id: str):
         """Handle tab change."""
         if tab_id == self.current_tab:
             return
-
-        # Update button styles
-        for tid, btn in self.tab_buttons.items():
-            if tid == tab_id:
-                btn.configure(fg_color=COLORS['accent'])
-            else:
-                btn.configure(fg_color="transparent")
 
         # Hide current tab
         if self.current_tab in self.tab_containers:

@@ -20,9 +20,6 @@ try:
 except ImportError:
     ANALYZER_AVAILABLE = False
 
-# Lab drawer import
-from ui.lab_drawer import LabDrawer
-
 
 class SampleRow(ctk.CTkFrame):
     """A single sample row with play button, metadata, and waveform."""
@@ -32,7 +29,7 @@ class SampleRow(ctk.CTkFrame):
 
     def __init__(self, parent, sample, on_play, on_edit=None, on_favorite=None,
                  on_add_to_collection=None, on_analyze=None, show_folder_path=False,
-                 on_go_to_folder=None, on_seek=None, on_match=None, on_lab_preview=None,
+                 on_go_to_folder=None, on_seek=None,
                  row_index=0, **kwargs):
         # Adjust height if showing folder path
         row_height = 80 if show_folder_path else 64  # Compact height for density
@@ -65,13 +62,9 @@ class SampleRow(ctk.CTkFrame):
         self.show_folder_path = show_folder_path  # Show folder context in global search
         self.on_go_to_folder = on_go_to_folder  # Callback for "Go to Folder" action
         self.on_seek = on_seek  # Callback for waveform click-to-seek
-        self.on_match = on_match  # Callback for find similar samples
-        self.on_lab_preview = on_lab_preview  # Callback for lab preview playback
         self.is_playing = False
         self.is_favorite = sample.get('is_favorite', False) or get_database().is_favorite(sample['path'])
         self.is_analyzing = False  # Track if analysis is in progress
-        self.lab_drawer = None  # Lab drawer widget
-        self.lab_expanded = False  # Track lab drawer state
         self.waveform_image = None  # CTkImage reference to prevent garbage collection
         self.waveform_gray = None   # PIL Image: gray waveform (unplayed)
         self.waveform_accent = None # PIL Image: accent waveform (played)
@@ -264,36 +257,6 @@ class SampleRow(ctk.CTkFrame):
             command=self._toggle_favorite
         )
         self.star_btn.pack(side="right", padx=(0, 8))
-
-        # Match/Find Similar button (DNA icon)
-        self.match_btn = ctk.CTkButton(
-            self,
-            text="\u221e",  # Infinity symbol as DNA-like icon
-            width=28,
-            height=28,
-            font=ctk.CTkFont(size=14),
-            fg_color="transparent",
-            hover_color=COLORS['bg_hover'],
-            text_color=COLORS['fg_dim'],
-            corner_radius=14,
-            command=self._on_match_click
-        )
-        self.match_btn.pack(side="right", padx=(0, 4))
-
-        # Lab button (beaker/test tube icon)
-        self.lab_btn = ctk.CTkButton(
-            self,
-            text="\U0001F9EA",  # Test tube emoji
-            width=28,
-            height=28,
-            font=ctk.CTkFont(size=12),
-            fg_color="transparent",
-            hover_color=COLORS['bg_hover'],
-            text_color=COLORS['fg_dim'],
-            corner_radius=14,
-            command=self._toggle_lab
-        )
-        self.lab_btn.pack(side="right", padx=(0, 4))
 
     @staticmethod
     def _format_duration(seconds: float) -> str:
@@ -504,9 +467,6 @@ class SampleRow(ctk.CTkFrame):
             else:
                 menu.add_command(label="Analyze BPM/Key", command=self._on_analyze)
 
-        # Find Similar option
-        menu.add_command(label="Find Similar", command=self._on_match_click)
-
         menu.add_command(label="Edit Metadata", command=self._on_edit_metadata)
         menu.add_separator()
 
@@ -532,11 +492,11 @@ class SampleRow(ctk.CTkFrame):
             self.on_edit(self)
 
     def _on_open_location(self):
-        """Open the file's folder in file explorer."""
-        folder = os.path.dirname(self.sample['path'])
-        if os.path.exists(folder):
-            # Windows
-            subprocess.run(['explorer', '/select,', self.sample['path']])
+        """Open the file's folder in file explorer and select the file."""
+        file_path = self.sample['path']
+        if os.path.exists(file_path):
+            # Windows - use shell=True with proper quoting for paths with spaces
+            subprocess.run(f'explorer /select,"{file_path}"', shell=True)
 
     def _on_copy_path(self):
         """Copy the file path to clipboard."""
@@ -560,11 +520,6 @@ class SampleRow(ctk.CTkFrame):
             self.is_analyzing = True
             self.on_analyze(self)
 
-    def _on_match_click(self):
-        """Handle Find Similar button click."""
-        if self.on_match:
-            self.on_match(self)
-
     def _on_create_task_from_sample(self):
         """Create a task linked to this sample in Studio Flow."""
         from core.task_manager import get_task_manager
@@ -572,72 +527,6 @@ class SampleRow(ctk.CTkFrame):
         sample_path = self.sample['path']
         filename = os.path.basename(sample_path)
         task_manager.create_task_from_sample(sample_path, f"Work on {filename}")
-
-    def _toggle_lab(self):
-        """Toggle the lab drawer open/closed."""
-        if self.lab_expanded:
-            self._close_lab()
-        else:
-            self._open_lab()
-
-    def _open_lab(self):
-        """Open the lab drawer with animation."""
-        if self.lab_drawer is not None:
-            return  # Already open
-
-        self.lab_expanded = True
-        self.lab_btn.configure(text_color=COLORS['accent'])
-
-        # Create lab drawer below the row content
-        self.lab_drawer = LabDrawer(
-            self.master,  # Parent is the scrollable frame
-            sample=self.sample,
-            on_close=self._close_lab,
-            on_preview=self._on_lab_preview
-        )
-
-        # Insert after this row
-        self.lab_drawer.pack(fill="x", pady=(0, SPACING['xs']), after=self)
-
-        # Animate height expansion
-        target_height = 180
-        self._animate_lab_height(0, target_height)
-
-    def _close_lab(self):
-        """Close the lab drawer."""
-        if self.lab_drawer is None:
-            return
-
-        self.lab_expanded = False
-        try:
-            self.lab_btn.configure(text_color=COLORS['fg_dim'])
-        except Exception:
-            pass  # Button may have been destroyed
-
-        # Destroy the drawer
-        try:
-            self.lab_drawer.destroy()
-        except Exception:
-            pass
-        self.lab_drawer = None
-
-    def _animate_lab_height(self, current, target, step=20):
-        """Animate lab drawer height expansion."""
-        if self.lab_drawer is None:
-            return
-
-        if current < target:
-            new_height = min(current + step, target)
-            try:
-                self.lab_drawer.configure(height=new_height)
-                self.after(10, lambda: self._animate_lab_height(new_height, target, step))
-            except Exception:
-                pass  # Widget destroyed during animation
-
-    def _on_lab_preview(self, temp_path: str):
-        """Handle lab preview playback."""
-        if self.on_lab_preview:
-            self.on_lab_preview(temp_path)
 
     def set_analyzing(self, is_analyzing: bool):
         """Set the analyzing state."""
@@ -812,15 +701,12 @@ class SampleList(ctk.CTkFrame):
         topbar.grid_columnconfigure(1, weight=0)  # Actions fixed
         topbar.grid_rowconfigure(0, weight=1)
 
-        # Breadcrumb (left side)
-        self.breadcrumb = ctk.CTkLabel(
-            topbar,
-            text="\U0001f4c1 Library",
-            font=ctk.CTkFont(size=13),
-            text_color=COLORS['fg_secondary'],
-            anchor="w"
-        )
-        self.breadcrumb.grid(row=0, column=0, sticky="w", pady=12)
+        # Breadcrumb container (left side) - holds clickable segments
+        self.breadcrumb_frame = ctk.CTkFrame(topbar, fg_color="transparent")
+        self.breadcrumb_frame.grid(row=0, column=0, sticky="w", pady=12)
+        self.breadcrumb_segments = []  # List of (label, path) tuples
+        self.on_breadcrumb_navigate = None  # Callback for breadcrumb navigation
+        self._set_breadcrumb_text("\U0001f4c1 Library")
 
         # Action buttons (right side) - use horizontal frame
         actions_frame = ctk.CTkFrame(topbar, fg_color="transparent")
@@ -882,20 +768,6 @@ class SampleList(ctk.CTkFrame):
             command=self._toggle_filters
         )
         self.filter_btn.pack(side="left")
-
-        # Clear Match button (hidden by default, shows in matching view)
-        self.clear_match_btn = ctk.CTkButton(
-            actions_frame,
-            text="Clear Match",
-            font=ctk.CTkFont(size=12),
-            fg_color=COLORS['accent'],
-            hover_color=COLORS['accent_hover'],
-            height=32,
-            corner_radius=6,
-            text_color="#ffffff",
-            command=self._clear_match_view
-        )
-        # Don't pack yet - will be shown when in matching view
 
         # Filter panel (collapsible)
         self.filter_panel = ctk.CTkFrame(self, fg_color=COLORS['bg_card'], height=56, corner_radius=0)
@@ -1112,8 +984,8 @@ class SampleList(ctk.CTkFrame):
         self.is_collection_view = False
         self.is_global_search = False
         self.current_collection_id = None
-        folder_name = os.path.basename(folder_path)
-        self.breadcrumb.configure(text=f"\U0001f4c1 Library  \u203a  {folder_name}")
+        # Build clickable breadcrumb for folder navigation
+        self._build_folder_breadcrumb(folder_path)
 
         # Scan folder and store samples (non-recursive - only files in this folder)
         self.all_samples = LibraryScanner.scan_folder(folder_path)
@@ -1144,7 +1016,7 @@ class SampleList(ctk.CTkFrame):
             self.all_samples = db.search_samples(self.search_query)
 
             # Update breadcrumb for global search
-            self.breadcrumb.configure(text=f"\U0001f50d Global Search: \"{query.strip()}\"")
+            self._set_breadcrumb_text(f"\U0001f50d Global Search: \"{query.strip()}\"")
 
             # Clear search_query since we already filtered via database
             self.search_query = ""
@@ -1222,11 +1094,6 @@ class SampleList(ctk.CTkFrame):
 
     def _refresh_display(self):
         """Refresh the sample list display based on current filter."""
-        # Close any open Lab drawers first
-        for row in self.sample_rows:
-            if hasattr(row, 'lab_drawer') and row.lab_drawer:
-                row._close_lab()
-
         # Clear existing rows
         for row in self.sample_rows:
             row.destroy()
@@ -1258,11 +1125,9 @@ class SampleList(ctk.CTkFrame):
             row = SampleRow(
                 self.scroll_frame, sample, self._on_play, self._on_edit,
                 self._on_favorite, self._on_add_to_collection, self._on_analyze,
-                show_folder_path=self.is_global_search or self.is_matching_view,
-                on_go_to_folder=self._on_go_to_folder if (self.is_global_search or self.is_matching_view) else None,
+                show_folder_path=self.is_global_search,
+                on_go_to_folder=self._on_go_to_folder if self.is_global_search else None,
                 on_seek=self._on_seek,
-                on_match=self._on_match,
-                on_lab_preview=self._on_lab_preview,
                 row_index=idx
             )
             row.pack(fill="x", pady=SPACING.get('row_gap', 1))
@@ -1379,13 +1244,13 @@ class SampleList(ctk.CTkFrame):
             self.after(2000, lambda: self.analyze_btn.configure(text="Analyze All"))
             return
 
-        # Update button to show progress
+        # Update button to show progress with spinner
         total = len(samples_to_analyze)
-        self.analyze_btn.configure(text=f"0/{total}", state="disabled")
+        self.analyze_btn.configure(text=f"⏳ Analyzing... 0/{total}", state="disabled")
 
         def on_progress(current, total, filepath):
-            # Schedule UI update on main thread
-            self.after(0, lambda: self.analyze_btn.configure(text=f"{current}/{total}"))
+            # Schedule UI update on main thread with progress indicator
+            self.after(0, lambda: self.analyze_btn.configure(text=f"⏳ Analyzing... {current}/{total}"))
 
         def on_complete(results):
             # Schedule UI update on main thread
@@ -1417,7 +1282,7 @@ class SampleList(ctk.CTkFrame):
         self.is_favorites_view = True
         self.is_collection_view = False
         self.current_collection_id = None
-        self.breadcrumb.configure(text="\u2605 Favorites")
+        self._set_breadcrumb_text("\u2605 Favorites")
 
         # Get favorites from database
         db = get_database()
@@ -1439,7 +1304,7 @@ class SampleList(ctk.CTkFrame):
         db = get_database()
         collection = db.get_collection(collection_id)
         collection_name = collection['name'] if collection else "Collection"
-        self.breadcrumb.configure(text=f"\u25A1 {collection_name}")
+        self._set_breadcrumb_text(f"\u25A1 {collection_name}")
 
         # Get collection samples
         self.all_samples = db.get_collection_samples(collection_id)
@@ -1456,7 +1321,7 @@ class SampleList(ctk.CTkFrame):
         self.is_collection_view = False
         self.is_global_search = False
         self.current_collection_id = None
-        self.breadcrumb.configure(text="\U0001f552 Recent")
+        self._set_breadcrumb_text("\U0001f552 Recent")
 
         # Get recent samples from database
         db = get_database()
@@ -1468,11 +1333,6 @@ class SampleList(ctk.CTkFrame):
 
     def clear_samples(self):
         """Clear the sample list display."""
-        # Close any open Lab drawers first
-        for row in self.sample_rows:
-            if hasattr(row, 'lab_drawer') and row.lab_drawer:
-                row._close_lab()
-
         for row in self.sample_rows:
             row.destroy()
         self.sample_rows = []
@@ -1482,12 +1342,8 @@ class SampleList(ctk.CTkFrame):
         self.is_favorites_view = False
         self.is_collection_view = False
         self.is_global_search = False
-        self.is_matching_view = False
         self.current_collection_id = None
-        self.match_source_sample = None
         self.count_label.configure(text="")
-        # Hide Clear Match button if visible
-        self.clear_match_btn.pack_forget()
 
     def _stop_playback(self):
         """Stop current playback visual state."""
@@ -1555,6 +1411,154 @@ class SampleList(ctk.CTkFrame):
 
             # Refresh display with new sort
             self._refresh_display()
+
+    # ==================== Breadcrumb Navigation Methods ====================
+
+    def _set_breadcrumb_text(self, text: str):
+        """Set simple breadcrumb text (non-clickable, for special views)."""
+        self._clear_breadcrumb()
+        label = ctk.CTkLabel(
+            self.breadcrumb_frame,
+            text=text,
+            font=ctk.CTkFont(size=13),
+            text_color=COLORS['fg_secondary']
+        )
+        label.pack(side="left")
+        self.breadcrumb_segments = [(label, None)]
+
+    def _clear_breadcrumb(self):
+        """Clear all breadcrumb segments."""
+        for widget in self.breadcrumb_frame.winfo_children():
+            widget.destroy()
+        self.breadcrumb_segments = []
+
+    def _build_folder_breadcrumb(self, folder_path: str):
+        """Build clickable breadcrumb for folder navigation.
+
+        Creates segments like: Browse > My Samples > Drums > Kicks
+        Each segment (except the last) is clickable to navigate up.
+        """
+        self._clear_breadcrumb()
+
+        # Get root folders from config to determine the base
+        root_folders = []
+        if self.config_manager:
+            root_folders = self.config_manager.root_folders
+
+        # Find which root folder this path belongs to
+        root_folder = None
+        for rf in root_folders:
+            # Normalize paths for comparison
+            rf_norm = os.path.normpath(rf).lower()
+            path_norm = os.path.normpath(folder_path).lower()
+            if path_norm.startswith(rf_norm):
+                root_folder = rf
+                break
+
+        if not root_folder:
+            # Fallback to simple breadcrumb if not in a known root
+            self._set_breadcrumb_text(f"\U0001f4c1 {os.path.basename(folder_path)}")
+            return
+
+        # Build path segments from root to current folder
+        segments = []
+
+        # Add "Browse" as the first segment (navigates to root)
+        segments.append(("Browse", None))  # None means "go to tree root"
+
+        # Get relative path from root folder
+        root_norm = os.path.normpath(root_folder)
+        folder_norm = os.path.normpath(folder_path)
+
+        if folder_norm == root_norm:
+            # We're at the root folder itself
+            segments.append((os.path.basename(root_folder), folder_path))
+        else:
+            # Add root folder name
+            segments.append((os.path.basename(root_folder), root_folder))
+
+            # Add intermediate folders
+            try:
+                rel_path = os.path.relpath(folder_path, root_folder)
+                if rel_path and rel_path != '.':
+                    parts = rel_path.split(os.sep)
+                    current_path = root_folder
+                    for part in parts:
+                        current_path = os.path.join(current_path, part)
+                        segments.append((part, current_path))
+            except ValueError:
+                # relpath can fail on different drives on Windows
+                segments.append((os.path.basename(folder_path), folder_path))
+
+        # Create UI elements for each segment
+        for i, (name, path) in enumerate(segments):
+            is_last = (i == len(segments) - 1)
+
+            # Create clickable label for non-last segments
+            if not is_last and path is not None:
+                label = ctk.CTkLabel(
+                    self.breadcrumb_frame,
+                    text=name,
+                    font=ctk.CTkFont(size=13),
+                    text_color=COLORS['fg_dim'],
+                    cursor="hand2"
+                )
+                label.pack(side="left")
+                # Bind click event
+                label.bind("<Button-1>", lambda e, p=path: self._on_breadcrumb_click(p))
+                label.bind("<Enter>", lambda e, l=label: l.configure(text_color=COLORS['accent']))
+                label.bind("<Leave>", lambda e, l=label: l.configure(text_color=COLORS['fg_dim']))
+            elif not is_last and path is None:
+                # "Browse" segment - no specific path
+                label = ctk.CTkLabel(
+                    self.breadcrumb_frame,
+                    text=name,
+                    font=ctk.CTkFont(size=13),
+                    text_color=COLORS['fg_dim'],
+                    cursor="hand2"
+                )
+                label.pack(side="left")
+                label.bind("<Button-1>", lambda e: self._on_breadcrumb_click(None))
+                label.bind("<Enter>", lambda e, l=label: l.configure(text_color=COLORS['accent']))
+                label.bind("<Leave>", lambda e, l=label: l.configure(text_color=COLORS['fg_dim']))
+            else:
+                # Last segment (current folder) - not clickable, highlighted
+                label = ctk.CTkLabel(
+                    self.breadcrumb_frame,
+                    text=name,
+                    font=ctk.CTkFont(size=13, weight="bold"),
+                    text_color=COLORS['fg_secondary']
+                )
+                label.pack(side="left")
+
+            self.breadcrumb_segments.append((label, path))
+
+            # Add separator between segments (except after last)
+            if not is_last:
+                sep = ctk.CTkLabel(
+                    self.breadcrumb_frame,
+                    text="  \u203a  ",  # Right-pointing angle bracket
+                    font=ctk.CTkFont(size=13),
+                    text_color=COLORS['fg_muted']
+                )
+                sep.pack(side="left")
+
+    def _on_breadcrumb_click(self, folder_path: str | None):
+        """Handle breadcrumb segment click to navigate up the hierarchy."""
+        if folder_path and os.path.exists(folder_path):
+            self.load_folder(folder_path)
+        # If on_breadcrumb_navigate callback is set, call it
+        if self.on_breadcrumb_navigate:
+            self.on_breadcrumb_navigate(folder_path)
+
+    def set_breadcrumb_callback(self, callback):
+        """Set callback for breadcrumb navigation.
+
+        Args:
+            callback: Function that takes folder_path (str or None) as argument.
+                      Called when user clicks a breadcrumb segment.
+        """
+        self.on_breadcrumb_navigate = callback
 
     def _toggle_filters(self):
         """Toggle the filter panel visibility."""
@@ -1702,100 +1706,6 @@ class SampleList(ctk.CTkFrame):
 
         self.filtered_samples.sort(key=get_sort_key, reverse=reverse)
 
-    # ==================== Sonic Matching Methods ====================
-
-    def _on_lab_preview(self, temp_path: str):
-        """Handle lab preview playback request."""
-        if self.on_play_request and temp_path:
-            # Create a temporary sample dict for the preview
-            preview_sample = {
-                'path': temp_path,
-                'filename': os.path.basename(temp_path),
-                'name': 'Lab Preview',
-            }
-            self.on_play_request(preview_sample, [preview_sample], 0)
-
-    def _on_match(self, row):
-        """Handle find similar request from a sample row."""
-        sample_path = row.sample['path']
-
-        # Show loading state
-        self.breadcrumb.configure(text=f"\u221e Finding similar to: {row.sample['filename']}...")
-
-        def do_match():
-            from core.fingerprint import generate_fingerprint
-            from core.database import get_database
-
-            db = get_database()
-
-            # Generate fingerprint for query sample (or get from cache)
-            query_hashes = db.get_fingerprints(sample_path)
-            if not query_hashes:
-                # Generate new fingerprint
-                query_hashes = generate_fingerprint(sample_path)
-                if query_hashes:
-                    db.save_fingerprints(sample_path, query_hashes)
-
-            if not query_hashes:
-                # Failed to generate fingerprint
-                self.after(0, lambda: self._show_match_error("Could not analyze audio"))
-                return
-
-            # Find similar samples
-            matches = db.find_similar_samples(query_hashes, exclude_path=sample_path, limit=25)
-
-            # Schedule UI update on main thread
-            self.after(0, lambda: self._display_matches(row.sample, matches))
-
-        # Run in background thread
-        import threading
-        thread = threading.Thread(target=do_match, daemon=True)
-        thread.start()
-
-    def _display_matches(self, source_sample, matches):
-        """Display matching samples in the list."""
-        self._hide_empty_state()
-        self.is_matching_view = True
-        self.is_favorites_view = False
-        self.is_collection_view = False
-        self.is_global_search = False
-        self.current_collection_id = None
-        self.match_source_sample = source_sample
-
-        # Update breadcrumb
-        source_name = source_sample.get('filename', 'sample')
-        self.breadcrumb.configure(text=f"\u221e Similar to: {source_name}")
-
-        # Show Clear Match button
-        self.clear_match_btn.pack(side="left", padx=(8, 0))
-
-        # Get sample data for matches
-        db = get_database()
-        self.all_samples = []
-
-        for path, score in matches:
-            sample = db.get_sample(path)
-            if sample:
-                # Add similarity score to sample
-                sample['match_score'] = score
-                self.all_samples.append(sample)
-
-        self.search_query = ""
-        self._refresh_display()
-
-        # Update count to show matches
-        if self.all_samples:
-            self.count_label.configure(text=f"{len(self.all_samples)} matches")
-        else:
-            self.count_label.configure(text="No matches found")
-
-    def _show_match_error(self, message):
-        """Show error message when matching fails."""
-        self.breadcrumb.configure(text=f"\u26a0 {message}")
-        self.after(3000, lambda: self.breadcrumb.configure(
-            text=self._get_current_breadcrumb_text()
-        ))
-
     def _get_current_breadcrumb_text(self):
         """Get the appropriate breadcrumb text for current view."""
         if self.is_favorites_view:
@@ -1807,18 +1717,3 @@ class SampleList(ctk.CTkFrame):
         elif self.current_path:
             return f"\U0001f4c1 Library  \u203a  {os.path.basename(self.current_path)}"
         return "\U0001f4c1 Library"
-
-    def _clear_match_view(self):
-        """Clear the matching view and return to previous state."""
-        self.is_matching_view = False
-        self.match_source_sample = None
-
-        # Hide Clear Match button
-        self.clear_match_btn.pack_forget()
-
-        # Return to last folder if available
-        if self.last_folder_path and os.path.exists(self.last_folder_path):
-            self.load_folder(self.last_folder_path)
-        else:
-            self.clear_samples()
-            self._show_empty_state()

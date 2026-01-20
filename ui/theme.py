@@ -121,9 +121,13 @@ COLORS = {
     'fg_dim': '#606070',           # Secondary metadata (Bitrate, Format, Path)
     'fg_muted': '#404050',         # Very dim text
 
-    # Borders & Dividers - Key for pro look
+    # Borders & Dividers - Key for pro look with clear state progression
     'border': '#2D2D3A',           # Subtle dividers between rows/sections
     'border_subtle': '#232330',    # Very subtle borders
+    'border_default': '#2D2D3A',   # Default border state (same as 'border')
+    'border_hover': '#3D3D4A',     # Border on hover (slightly lighter)
+    'border_active': '#4D4D5A',    # Border when active/selected (more prominent)
+    'border_focus': '#FF6100',     # Border when focused (accent color for inputs)
 
     # Status colors
     'success': '#4ade80',          # Green
@@ -133,7 +137,17 @@ COLORS = {
 
 # =============================================================================
 # TYPOGRAPHY - Using loaded fonts with fallbacks
+# Typography hierarchy: 16px (large), 13px (default), 11px (small), 10px (tiny)
+# Accent color usage: Orange=#FF6100 for interactive elements, Purple=#8B5CF6 for analyzed data
 # =============================================================================
+
+# Explicit font size tiers for consistent typography hierarchy
+FONT_SIZES = {
+    'header': 16,      # Large headers, titles
+    'body': 13,        # Default body text, section headers
+    'secondary': 11,   # Secondary info, small labels
+    'tertiary': 10,    # Very small text, metadata
+}
 
 FONTS = {
     'primary': FONT_PRIMARY,       # Primary font
@@ -142,28 +156,31 @@ FONTS = {
     'logo': (FONT_PRIMARY, 18, 'bold'),
     'nav': (FONT_PRIMARY, 12),               # Slightly smaller for density
     'nav_active': (FONT_PRIMARY, 12, 'bold'),
-    'header': (FONT_PRIMARY, 11, 'bold'),    # Section headers
-    'body': (FONT_PRIMARY, 12),              # Default body text
-    'body_bold': (FONT_PRIMARY, 12, 'bold'),
-    'small': (FONT_PRIMARY, 11),             # Secondary info
-    'tiny': (FONT_PRIMARY, 10),              # Very small text
-    'mono_data': (FONT_MONO, 11),            # BPM/Key values - slightly smaller for density
+    'header': (FONT_PRIMARY, 13, 'bold'),    # Section headers - 13px tier
+    'header_lg': (FONT_PRIMARY, 16, 'bold'), # Large headers - 16px tier
+    'body': (FONT_PRIMARY, 13),              # Default body text - 13px tier
+    'body_bold': (FONT_PRIMARY, 13, 'bold'),
+    'small': (FONT_PRIMARY, 11),             # Secondary info - 11px tier
+    'tiny': (FONT_PRIMARY, 10),              # Very small text - 10px tier
+    'mono_data': (FONT_MONO, 11),            # BPM/Key values - 11px tier
 }
 
 # =============================================================================
 # SPACING - Compact 4px grid for professional density
+# Pure 4px scale: 4, 8, 12, 16, 20, 24
 # =============================================================================
 
 SPACING = {
-    'xs': 2,     # Minimal gaps (was 4)
-    'sm': 4,     # Small gaps (was 8)
-    'md': 8,     # Medium gaps (was 16)
-    'lg': 12,    # Large gaps (was 24)
-    'xl': 16,    # Extra large (was 32)
+    'xs': 4,     # Minimal gaps (pure 4px scale)
+    'sm': 8,     # Small gaps
+    'md': 12,    # Medium gaps
+    'lg': 16,    # Large gaps
+    'xl': 20,    # Extra large
+    'xxl': 24,   # Double extra large
 
     # Specific layout values
     'row_padding': 4,      # Vertical padding inside list rows
-    'row_gap': 1,          # Gap between rows
+    'row_gap': 2,          # Gap between rows (increased from 1px to 2px)
     'section_gap': 8,      # Gap between sections
     'panel_padding': 8,    # Padding inside panels
 }
@@ -176,10 +193,16 @@ SIZING = {
     # Row heights
     'row_height': 32,          # Compact row height for lists
     'row_height_detail': 48,   # Row with more info (waveform, etc.)
+    'row_sm': 24,              # Small row height
+    'row_md': 32,              # Medium row height
+    'row_lg': 40,              # Large row height
+
+    # Headers
+    'header_height': 56,       # Standard header height for topbar/sections
 
     # Sidebar
     'sidebar_width': 200,
-    'sidebar_item_height': 32,
+    'sidebar_item_height': 40, # Reduced from 48px to 40px for density
 
     # Tree view
     'tree_item_height': 24,
@@ -194,4 +217,70 @@ SIZING = {
     'border_width': 1,
     'border_radius': 4,
     'border_radius_sm': 2,
+}
+
+# =============================================================================
+# ICONS - Consistent Unicode symbols
+# =============================================================================
+
+ICONS = {
+    # Playback
+    'play': '▶',
+    'pause': '❚❚',
+    'stop': '■',
+    'next': '⏭',
+    'prev': '⏮',
+    'volume': '🔊',
+    'mute': '🔇',
+
+    # Actions
+    'edit': '✎',
+    'delete': '🗑',
+    'add': '+',
+    'close': '✕',
+    'search': '🔍',
+    'filter': '⚡',
+    'sort': '⇅',
+    'refresh': '⟳',
+    'settings': '⚙',
+
+    # Status
+    'check': '✓',
+    'star': '★',
+    'star_outline': '☆',
+    'sync': '⇄',
+    'link': '🔗',
+    'lab': '🧪',
+    'match': '∞',
+
+    # Navigation / Files
+    'folder': '📁',
+    'folder_open': '📂',
+    'file': '📄',
+    'music': '🎵',
+    'arrow_right': '→',
+    'arrow_left': '←',
+    'arrow_up': '↑',
+    'arrow_down': '↓',
+    'chevron_right': '›',
+    'chevron_left': '‹',
+
+    # Social
+    'instagram': '◎',
+    'twitter': '╳',
+    'website': '↗',
+
+    # Business
+    'dollar': '$',
+    'invoice': '📄',
+    'chart': '📊',
+
+    # Network
+    'globe': '🌐',
+    'person': '👤',
+
+    # Tasks
+    'task': '✓',
+    'calendar': '📅',
+    'focus': '🎯',
 }
